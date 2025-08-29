@@ -1,4 +1,5 @@
 import Image from "next/image";
+import SupabaseTest from "@/components/SupabaseTest";
 
 export default function Home() {
   return (
@@ -12,6 +13,14 @@ export default function Home() {
           height={38}
           priority
         />
+        
+        <div className="text-center sm:text-left">
+          <h1 className="text-2xl font-bold mb-4">CV Blog with Supabase</h1>
+          <p className="text-gray-600 mb-6">Next.js와 Supabase를 사용한 블로그 프로젝트</p>
+        </div>
+
+        <SupabaseTest />
+
         <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
           <li className="mb-2 tracking-[-.01em]">
             Get started by editing{" "}
