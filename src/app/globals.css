@@ -1,138 +1,166 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+@import "tailwindcss";
 @import '../styles/glasseffect.css';
 
-/* GLOBAL STYLES */
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  padding: 0;
-  margin: 0;
-  min-height: 100vh;
-  background: #1a1a1a;
-  font-family: sans-serif;
-  font-weight: 300;
-  position: relative;
-  transition: background-color 0.3s ease;
-}
-
-main {
-  width: 100%;
-  min-height: 100vh;
+/* ===== VARIABLES ===== */
+:root {
+  --bg: #000000;
+  --bg-alt: #0a0a0a;
+  --bg-section: #111111;
+  --bg-hover: rgba(255,255,255,0.04);
+  --border: rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.15);
+  --t1: #ffffff;
+  --t2: #b0b0b0;
+  --t3: #707070;
+  --t4: #404040;
+  --accent: #00c73c;
+  --accent-dim: rgba(0,199,60,0.12);
+  --on-accent: #ffffff;
+  --code-bg: #0d0d0d;
+  --code-border: rgba(255,255,255,0.06);
+  --font: 'Noto Sans KR', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-tag: 'Pretendard', 'Noto Sans KR', 'Inter', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --nav-h: 60px;
+  --max-w: 1200px;
+  --content-w: 720px;
 }
 
 body.light-theme {
-  background: #FAF8F3;
+  --bg: #ffffff;
+  --bg-alt: #fafafa;
+  --bg-section: #f5f5f5;
+  --bg-hover: rgba(0,0,0,0.03);
+  --border: rgba(0,0,0,0.08);
+  --border-strong: rgba(0,0,0,0.15);
+  --t1: #111111;
+  --t2: #555555;
+  --t3: #999999;
+  --t4: #cccccc;
+  --accent: #00a832;
+  --accent-dim: rgba(0,168,50,0.08);
+  --on-accent: #ffffff;
+  --code-bg: #f0f0f0;
+  --code-border: rgba(0,0,0,0.06);
 }
 
-/* 검색 페이지 */
-.search-page {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 10000;
-  transition: background-color 0.3s ease;
+/* ===== RESET ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100,100,100,0.25) transparent;
+  overflow-x: hidden;
+}
+html::-webkit-scrollbar { width: 5px; }
+html::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb { background: rgba(100,100,100,0.25); }
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--t1);
+  font-family: var(--font);
+  font-weight: 400;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.3s, color 0.3s;
 }
 
-.search-page.dark {
-  background: #1a1a1a;
+main { width: 100%; min-height: 100vh; }
+
+::selection { background: rgba(0,199,60,0.25); color: var(--t1); }
+
+/* ===== UTILITIES ===== */
+.accent { color: var(--accent); }
+.t2 { color: var(--t2); }
+.t3 { color: var(--t3); }
+.mono { font-family: var(--mono); }
+/* 한글 단어 중간 줄바꿈 방지 (예: "모델" → "모"+"델" 분리 방지) */
+.keep-words { word-break: keep-all; }
+
+/* ===== SCROLL REVEAL ===== */
+.reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.16,1,0.3,1), transform 0.8s cubic-bezier(0.16,1,0.3,1);
+  min-width: 0; /* grid/flex 자식이 셀을 채우도록 */
+}
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
-.search-page.light {
-  background: #FAF8F3;
+/* ===== BUTTONS ===== */
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--t1); color: var(--bg);
+  border: none; padding: 10px 24px;
+  font: 600 14px var(--font);
+  cursor: pointer; transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.8; }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; color: var(--t2);
+  border: 1px solid var(--border);
+  padding: 10px 24px;
+  font: 500 14px var(--font);
+  cursor: pointer; transition: border-color 0.15s, color 0.15s;
+}
+.btn-ghost:hover { border-color: var(--border-strong); color: var(--t1); }
+
+/* ===== TAGS ===== */
+.tag {
+  display: inline-block;
+  padding: 3px 10px;
+  font: 500 12px/1.5 var(--font-tag);
+  color: var(--accent);
+  background: var(--accent-dim);
+  letter-spacing: -0.01em;
 }
 
-/* 검색 페이지 콘텐츠 */
-.search-content {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10001;
+/* ===== ANIMATIONS ===== */
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+@keyframes pulse { 0%,100%{opacity:.25} 50%{opacity:.5} }
+
+/* ===== MARKDOWN ===== */
+.markdown-content { font-size: 17px; line-height: 1.9; color: var(--t2); }
+.markdown-content h1 { font-size: 1.8em; font-weight: 800; color: var(--t1); margin: 2.5em 0 .6em; padding-bottom: .4em; border-bottom: 1px solid var(--border); letter-spacing: -.02em; }
+.markdown-content h2 { font-size: 1.4em; font-weight: 700; color: var(--t1); margin: 2em 0 .5em; letter-spacing: -.01em; }
+.markdown-content h3 { font-size: 1.15em; font-weight: 600; color: var(--t1); margin: 1.5em 0 .4em; }
+.markdown-content p { margin-bottom: 1.4em; }
+.markdown-content a { color: var(--accent); text-decoration: none; transition: opacity .15s; }
+.markdown-content a:hover { opacity: .7; }
+.markdown-content blockquote { border-left: 3px solid var(--accent); padding: .6em 1.2em; margin: 1.8em 0; background: var(--bg-alt); color: var(--t3); }
+.markdown-content pre { background: var(--code-bg); border: 1px solid var(--code-border); padding: 1.4em; overflow-x: auto; margin: 1.8em 0; font: .85em/1.8 var(--mono); }
+.markdown-content code { font-family: var(--mono); font-size: .85em; }
+.markdown-content :not(pre)>code { background: var(--code-bg); border: 1px solid var(--code-border); padding: 1px 5px; }
+.markdown-content ul, .markdown-content ol { padding-left: 1.5em; margin-bottom: 1.4em; }
+.markdown-content li { margin-bottom: .4em; }
+.markdown-content img { max-width: 100%; height: auto; margin: 2em 0; }
+.markdown-content table { width: 100%; border-collapse: collapse; margin: 2em 0; }
+.markdown-content th, .markdown-content td { border: 1px solid var(--border); padding: 12px 16px; text-align: left; }
+.markdown-content th { background: var(--bg-alt); font-weight: 600; color: var(--t1); }
+.markdown-content hr { border: none; border-top: 1px solid var(--border); margin: 2.5em 0; }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  :root { --nav-h: 52px; }
+  .markdown-content { font-size: 16px; }
 }
 
-/* 검색 페이지 아이리스 인 오버레이 (원형 스프라이트 축소) */
-.search-iris-in-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 10002;
-  clip-path: circle(100% at 50% 50%);
-  animation: irisIn 1s cubic-bezier(0.45, 0, 0.15, 1) forwards;
-  pointer-events: none;
+/* 모바일 전용 유틸리티 */
+@media (max-width: 768px) {
+  .mobile-padding { padding-left: 20px !important; padding-right: 20px !important; }
+  .mobile-stack { flex-direction: column !important; }
 }
 
-/* 야간 모드에서: 아이보리 색상 */
-.search-page.dark .search-iris-in-overlay {
-  background: #FAF8F3;
-}
+/* Safe area for notched devices (mobile full-screen overlays) */
 
-/* 라이트 모드에서: 어두운 색상 */
-.search-page.light .search-iris-in-overlay {
-  background: #1a1a1a;
-}
-
-/* 애니메이션 완료 후 작은 원형 유지 (16px 지름 = 8px 반지름) */
-.search-iris-in-overlay.complete {
-  clip-path: circle(8px at 50% 50%);
-}
-
-@keyframes irisIn {
-  0% {
-    clip-path: circle(100% at 50% 50%);
-  }
-  100% {
-    clip-path: circle(8px at 50% 50%);
-  }
-}
-
-/* 검색 모드 비네팅 오버레이 - 성능 최적화 */
-@property --hole-size {
-  syntax: '<percentage>';
-  inherits: false;
-  initial-value: 150%;
-}
-
-.search-vignette-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 9999;
-  cursor: pointer;
-  --hole-size: 150%;
-  mask-image: radial-gradient(circle at center, transparent var(--hole-size), black var(--hole-size));
-  -webkit-mask-image: radial-gradient(circle at center, transparent var(--hole-size), black var(--hole-size));
-  animation: irisOut 1s cubic-bezier(0.65, 0, 0.35, 1) forwards;
-  will-change: contents;
-}
-
-/* 야간 모드: 아이보리 색상으로 가리기 */
-.search-vignette-overlay.dark-mode {
-  background: #FAF8F3;
-}
-
-/* 라이트 모드: 어두운 색상으로 가리기 */
-.search-vignette-overlay.light-mode {
-  background: #1a1a1a;
-}
-
-@keyframes irisOut {
-  0% {
-    --hole-size: 150%;
-  }
-  100% {
-    --hole-size: 0%;
-  }
-}
+@media print { body { background: #fff !important; color: #000 !important; } nav { display: none !important; } }

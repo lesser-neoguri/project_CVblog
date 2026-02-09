@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 
 function useReveal() {
   const ref = useRef<HTMLDivElement>(null);
@@ -23,9 +22,7 @@ function Section({ children, style, delay = 0 }: { children: React.ReactNode; st
   return <div ref={ref} className="reveal" style={{ ...style, transitionDelay: `${delay}s` }}>{children}</div>;
 }
 
-export default function HomePage() {
-  const router = useRouter();
-
+export default function AboutPage() {
   const techStack = [
     { category: 'FRONTEND', items: ['React', 'Next.js', 'TypeScript', 'Tailwind CSS'] },
     { category: 'BACKEND', items: ['Node.js', 'Supabase', 'PostgreSQL'] },
@@ -41,35 +38,26 @@ export default function HomePage() {
   return (
     <main>
       {/* Hero */}
-      <section style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', padding: '0 clamp(20px, 5vw, 32px)', position: 'relative' }}>
+      <section style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', padding: '0 32px', position: 'relative' }}>
         <div style={{ position: 'absolute', bottom: '10%', left: '-5%', width: '30vw', height: '30vw', background: 'radial-gradient(circle, rgba(0,199,60,0.03) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
         <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', width: '100%' }}>
-          <p className="mono accent" style={{ fontSize: '13px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '28px', animation: 'fadeIn .6s ease-out' }}>
-            DEVELOPER & RESEARCHER
+          <p className="mono accent" style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '24px', animation: 'fadeIn .6s ease-out' }}>
+            ABOUT
           </p>
-          <h1 style={{ fontSize: 'clamp(36px, 6vw, 72px)', fontWeight: 900, lineHeight: 1.12, letterSpacing: '-0.04em', marginBottom: '28px', animation: 'fadeUp .8s cubic-bezier(0.16,1,0.3,1)' }}>
+          <h1 style={{ fontSize: 'clamp(32px, 5vw, 64px)', fontWeight: 900, lineHeight: 1.15, letterSpacing: '-0.04em', marginBottom: '24px', animation: 'fadeUp .8s cubic-bezier(0.16,1,0.3,1)' }}>
             코드로 문제를<br />
             해결하는 <span style={{ color: 'var(--t3)' }}>사람</span>
           </h1>
-          <p style={{ fontSize: 'clamp(16px, 2vw, 20px)', fontWeight: 300, color: 'var(--t2)', lineHeight: 1.7, maxWidth: '520px', marginBottom: '48px', animation: 'fadeUp .8s cubic-bezier(0.16,1,0.3,1) .1s backwards' }}>
+          <p style={{ fontSize: 'clamp(16px, 2vw, 20px)', fontWeight: 300, color: 'var(--t2)', lineHeight: 1.7, maxWidth: '520px', animation: 'fadeUp .8s cubic-bezier(0.16,1,0.3,1) .1s backwards' }}>
             새로운 기술을 배우고, 그 과정을 기록합니다.<br />
-            개발하면서 겪은 경험과 생각을 정리하는 공간입니다.
+            이 블로그는 개발하면서 겪은 경험과 생각을 정리하는 공간입니다.
           </p>
-          <div style={{ display: 'flex', gap: '12px', animation: 'fadeUp .8s cubic-bezier(0.16,1,0.3,1) .2s backwards' }}>
-            <button className="btn-primary" onClick={() => router.push('/posts')}>
-              블로그 보기
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-            </button>
-            <button className="btn-ghost" onClick={() => router.push('/projects')}>
-              프로젝트
-            </button>
-          </div>
         </div>
       </section>
 
       {/* Values */}
-      <section style={{ background: 'var(--bg-alt)', borderTop: '1px solid var(--border)', padding: 'clamp(60px, 12vw, 120px) clamp(20px, 5vw, 32px)' }}>
+      <section style={{ background: 'var(--bg-alt)', borderTop: '1px solid var(--border)', padding: '120px 32px' }}>
         <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto' }}>
           <Section>
             <p className="mono accent" style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '12px' }}>VALUES</p>
@@ -78,7 +66,7 @@ export default function HomePage() {
             </h2>
           </Section>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1px', background: 'var(--border)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'var(--border)' }}>
             {values.map((v, i) => (
               <Section key={i} delay={i * 0.08}>
                 <div style={{ background: 'var(--bg-alt)', padding: '48px 36px', height: '100%' }}>
@@ -99,8 +87,8 @@ export default function HomePage() {
       </section>
 
       {/* Tech Stack */}
-      <section style={{ borderTop: '1px solid var(--border)', padding: 'clamp(60px, 12vw, 120px) clamp(20px, 5vw, 32px)' }}>
-        <div className="tech-stack-grid" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '80px', alignItems: 'start' }}>
+      <section style={{ borderTop: '1px solid var(--border)', padding: '120px 32px' }}>
+        <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '80px', alignItems: 'start' }}>
           <Section>
             <p className="mono accent" style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '12px' }}>TECH STACK</p>
             <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 44px)', fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.2, marginBottom: '20px' }}>
@@ -131,7 +119,7 @@ export default function HomePage() {
       </section>
 
       {/* Contact */}
-      <section style={{ background: 'var(--bg-alt)', borderTop: '1px solid var(--border)', padding: 'clamp(60px, 12vw, 120px) clamp(20px, 5vw, 32px)' }}>
+      <section style={{ background: 'var(--bg-alt)', borderTop: '1px solid var(--border)', padding: '120px 32px' }}>
         <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', textAlign: 'center' }}>
           <Section>
             <p className="mono accent" style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '12px' }}>CONTACT</p>
@@ -141,7 +129,7 @@ export default function HomePage() {
             <p style={{ fontSize: '15px', color: 'var(--t2)', lineHeight: 1.7, marginBottom: '40px' }}>
               기술에 대한 이야기, 협업 제안 모두 환영합니다.
             </p>
-            <div className="contact-buttons" style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
               <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="btn-ghost" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 24px', fontSize: '14px' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
                 GitHub
@@ -155,18 +143,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer style={{ borderTop: '1px solid var(--border)', padding: '48px clamp(20px, 5vw, 32px)' }}>
-        <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <span style={{ fontWeight: 700, fontSize: '15px', letterSpacing: '-0.02em' }}>D.blog</span>
-          <span style={{ fontSize: '12px', color: 'var(--t4)' }}>© 2026 D.blog</span>
-        </div>
-      </footer>
-
+      {/* Responsive */}
       <style jsx global>{`
         @media (max-width: 768px) {
-          .tech-stack-grid { grid-template-columns: 1fr !important; gap: 48px !important; }
-          .contact-buttons { flex-direction: column; align-items: center; }
+          section > div[style*="grid-template-columns: repeat(3"] { grid-template-columns: 1fr !important; }
+          section > div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; gap: 48px !important; }
         }
       `}</style>
     </main>

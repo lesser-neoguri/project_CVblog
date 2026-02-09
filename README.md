@@ -1,23 +1,25 @@
-# CV Blog - 그래프형 블로그
+# CV Blog - 포트폴리오 블로그
 
-나(중심 노드)를 기준으로, 분류(논문리뷰/프로젝트/개념/기술노트)마다 '중력(이끌림)'이 적용되는 동적 그래프형 CV 블로그입니다.
+대학원 입시 및 취업용 CV 관리 및 마크다운 블로그 시스템입니다.
 
 ## 🚀 주요 기능
 
-- **3D 그래프 시각화**: `react-force-graph-3d`를 사용한 인터랙티브 그래프
-- **카테고리별 중력**: 슬라이더로 조절 가능한 카테고리별 군집 효과
-- **실시간 필터링**: 카테고리, 태그, 타입, 연결 강도별 필터링
-- **MDX 콘텐츠**: 마크다운 + JSX를 지원하는 콘텐츠 시스템
-- **반응형 UI**: Tailwind CSS + 다크모드 지원
+- **CV 섹션 관리**: 드래그 앤 드롭으로 이력서 섹션 관리 및 정렬
+- **커스텀 섹션**: 개인화된 이력서 섹션 추가 및 수정
+- **마크다운 블로그**: Supabase 기반의 실시간 마크다운 에디터 및 렌더러
+- **프로필 관리**: 학력, 경력, 프로젝트, 기술 스택 등 통합 관리
+- **이미지 업로드**: 드래그 앤 드롭 이미지 업로드 (Supabase Storage)
+- **반응형 UI**: Glassmorphism 효과와 다크/라이트 모드 지원
 - **타입 안전성**: TypeScript + Zod 스키마 검증
 
 ## 🛠️ 기술 스택
 
 - **Frontend**: Next.js 15, React 19, TypeScript
-- **Styling**: Tailwind CSS
-- **Graph**: react-force-graph-3d, Three.js
+- **Backend**: Supabase (PostgreSQL, Storage, Auth)
+- **Styling**: Tailwind CSS, Glassmorphism
 - **Content**: MDX, gray-matter
-- **State**: Zustand
+- **Markdown**: react-markdown, SimpleMDE, rehype, remark
+- **State**: React Context API, Zustand
 - **Validation**: Zod
 
 ## 📁 프로젝트 구조
@@ -26,26 +28,35 @@
 src/
 ├── app/
 │   ├── layout.tsx          # 루트 레이아웃
-│   ├── page.tsx            # 메인 그래프 페이지
-│   └── [slug]/
-│       └── page.tsx        # 개별 콘텐츠 페이지
+│   ├── page.tsx            # 메인 CV 관리 페이지
+│   ├── posts/              # 블로그 포스트
+│   │   ├── page.tsx        # 포스트 목록
+│   │   └── [id]/
+│   │       ├── page.tsx    # 포스트 상세
+│   │       └── edit/
+│   │           └── page.tsx # 포스트 수정
+│   ├── write/
+│   │   └── page.tsx        # 새 포스트 작성
+│   ├── profile/
+│   │   └── edit/
+│   │       └── page.tsx    # 프로필 편집
+│   └── search/
+│       └── page.tsx        # 검색 페이지
 ├── components/
-│   ├── GraphCanvas.tsx     # 3D 그래프 캔버스
-│   ├── FiltersPanel.tsx    # 필터 패널
-│   ├── CategoryLegend.tsx  # 범례
-│   ├── GravityControl.tsx  # 중력 조절
-│   └── MDXContent.tsx      # MDX 렌더러
-├── lib/
-│   ├── mdx.ts              # MDX 파일 처리
-│   ├── graph.ts            # 그래프 데이터 생성
-│   └── store.ts            # Zustand 상태 관리
-└── types/
-    └── index.ts            # TypeScript 타입 정의
-
-content/                    # MDX 콘텐츠 파일들
-├── me.mdx                  # 자기소개 (중심 노드)
-├── soft-robotics-vla.mdx   # 논문 리뷰
-└── vla-basics.mdx          # 개념 정리
+│   ├── Navbar.tsx          # 하단 네비게이션 (glassmorphism)
+│   ├── MarkdownEditor.tsx  # SimpleMDE 에디터
+│   ├── MarkdownRenderer.tsx # Markdown 렌더러
+│   ├── ImageUploader.tsx   # 이미지 업로드
+│   └── Modal.tsx           # 모달 컴포넌트
+├── contexts/
+│   └── ThemeContext.tsx    # 테마 관리
+├── hooks/
+│   └── useModal.tsx        # 모달 훅
+└── lib/
+    ├── supabase.ts         # Supabase 클라이언트
+    ├── posts.ts            # 포스트 CRUD
+    ├── profiles.ts         # 프로필 CRUD
+    └── storage.ts          # 이미지 업로드/삭제
 ```
 
 ## 🚀 시작하기
@@ -56,7 +67,80 @@ content/                    # MDX 콘텐츠 파일들
 npm install
 ```
 
-### 2. 개발 서버 실행
+### 2. 환경 변수 설정
+
+프로젝트 루트에 `.env.local` 파일을 생성하고 다음 내용을 추가하세요:
+
+```env
+# Supabase 설정
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+```
+
+**Supabase 설정 방법:**
+
+1. [Supabase 대시보드](https://app.supabase.com)에 로그인
+2. 프로젝트 선택 (또는 새로 생성)
+3. Settings → API에서 다음 정보 복사:
+   - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
+   - anon/public key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+**데이터베이스 테이블 생성:**
+
+Supabase 대시보드의 SQL Editor에서 다음 쿼리를 실행하세요:
+
+```sql
+-- posts 테이블
+CREATE TABLE posts (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  author_id TEXT,
+  published BOOLEAN DEFAULT false,
+  slug TEXT UNIQUE,
+  blocks JSONB,
+  images TEXT[]
+);
+
+-- profiles 테이블
+CREATE TABLE profiles (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  username TEXT UNIQUE,
+  full_name TEXT,
+  avatar_url TEXT,
+  email TEXT,
+  phone TEXT,
+  location TEXT,
+  bio TEXT,
+  description TEXT,
+  website TEXT,
+  github TEXT,
+  linkedin TEXT,
+  education JSONB[],
+  experience JSONB[],
+  projects JSONB[],
+  skills JSONB[],
+  awards JSONB[],
+  certifications JSONB[],
+  publications JSONB[],
+  related_courses JSONB[],
+  language_tests JSONB[],
+  scholarships JSONB[],
+  extracurricular JSONB[],
+  cv_sections JSONB[],
+  custom_sections JSONB[]
+);
+
+-- Storage 버킷 생성 (UI에서 생성 필요)
+-- 버킷 이름: posts
+-- Public 액세스 허용
+```
+
+### 3. 개발 서버 실행
 
 ```bash
 npm run dev
@@ -64,91 +148,86 @@ npm run dev
 
 브라우저에서 [http://localhost:3000](http://localhost:3000)을 열어 확인하세요.
 
-### 3. 빌드
+### 4. 빌드
 
 ```bash
 npm run build
 npm start
 ```
 
-## 📝 콘텐츠 작성
+## ✍️ 사용법
 
-### MDX 파일 구조
+### CV 관리
 
-`content/` 디렉토리에 `.mdx` 파일을 생성하고 다음 frontmatter 형식을 따르세요:
+1. 메인 페이지에서 섹션을 드래그 앤 드롭으로 정렬
+2. 섹션 표시/숨김 토글로 원하는 섹션만 표시
+3. 커스텀 섹션 추가 및 수정
+4. PDF 출력 기능으로 이력서 다운로드
 
-```yaml
----
-title: "글 제목"
-slug: "unique-slug"
-type: "paperReview" # paperReview | project | concept | post | person | category
-category: ["논문리뷰", "로보틱스", "AI"]
-date: "2025-10-01"
-tags: ["VLA", "Soft Robotics"]
-links:
-  - type: "buildsOn" # cites | buildsOn | references | derivedFrom | related
-    to: "other-slug"
-    weight: 0.8
-external:
-  doi: "10.1234/abcd.efgh"
-  github: "https://github.com/username/repo"
-  demo: "https://demo.example.com"
----
+### 블로그 포스트
 
-# 마크다운 콘텐츠
+**글 작성하기:**
 
-여기에 MDX 콘텐츠를 작성하세요.
-```
+1. Navbar에서 **연필 아이콘 (Write)** 클릭
+2. 제목, URL 슬러그(선택), 마크다운 내용 작성
+3. 이미지 드래그 앤 드롭으로 업로드
+4. "발행하기" 체크박스로 발행 여부 선택
+5. "저장" 버튼 클릭
 
-### 필수 파일
+**글 목록 보기:**
 
-- **`me.mdx`**: `type: "person"`으로 설정된 자기소개 파일 (중심 노드)
+1. Navbar에서 **목록 아이콘 (Posts)** 클릭
+2. 발행된 글만 보기 / 모든 글 보기 토글
+3. 글 카드 클릭하여 상세 페이지로 이동
 
-### 노드 타입별 색상
+**글 수정/삭제:**
 
-- 🔵 **person**: 파란색 (중심 노드)
-- 🔴 **paperReview**: 빨간색 (논문 리뷰)
-- 🟢 **project**: 초록색 (프로젝트)
-- 🟡 **concept**: 노란색 (개념)
-- 🟣 **post**: 보라색 (일반 포스트)
-- ⚫ **category**: 회색 (카테고리)
+1. 글 상세 페이지에서 "수정" 버튼 클릭
+2. 내용 수정 후 "수정 완료" 버튼 클릭
+3. 삭제는 "삭제" 버튼 클릭 후 확인
 
-## 🎮 사용법
+### 프로필 관리
 
-### 그래프 조작
+1. Navbar에서 **프로필 아이콘** 클릭
+2. 기본 정보, 학력, 경력, 프로젝트 등 입력
+3. 프로필 사진 업로드 (드래그 앤 드롭)
+4. 기술 스택 태그 추가
+5. "저장" 버튼으로 프로필 업데이트
 
-- **드래그**: 노드를 드래그하여 위치 조정
-- **줌**: 마우스 휠로 확대/축소
-- **회전**: 마우스 드래그로 3D 회전
-- **클릭**: 노드 클릭 시 상세 페이지로 이동
+### 검색
 
-### 필터링
+1. Navbar에서 **검색 아이콘** 클릭
+2. 키워드로 포스트 및 프로필 검색
+3. 필터 옵션으로 검색 결과 정제
 
-- **카테고리 필터**: 특정 카테고리의 노드만 표시
-- **타입 필터**: 특정 타입의 노드만 표시
-- **태그 필터**: 특정 태그가 있는 노드만 표시
-- **연결 강도**: 가중치 범위로 링크 필터링
+### 마크다운 문법
 
-### 중력 조절
+SimpleMDE 에디터가 다음 마크다운 기능을 지원합니다:
 
-- **분산 (0)**: 노드들이 자유롭게 분산
-- **군집 (1)**: 카테고리별로 강하게 군집
+- **제목**: `# H1`, `## H2`, `### H3`
+- **강조**: `**굵게**`, `*기울임*`
+- **목록**: `- 항목`, `1. 번호`
+- **링크**: `[텍스트](URL)`
+- **이미지**: `![alt](URL)`
+- **코드**: `` `인라인` ``, ` ```언어\n코드블록\n``` `
+- **인용**: `> 인용문`
+- **표**: 마크다운 테이블 문법
+
+## 🎨 UI/UX 특징
+
+- **Glassmorphism**: 반투명 배경과 블러 효과
+- **다크/라이트 모드**: 자동 테마 전환 지원
+- **반응형 디자인**: 모바일, 태블릿, 데스크톱 최적화
+- **부드러운 애니메이션**: GSAP 기반 인터랙션
+- **하단 네비게이션**: 스크롤 시 자동 숨김/표시
 
 ## 🔧 개발
 
 ### 새로운 컴포넌트 추가
 
 1. `src/components/`에 컴포넌트 파일 생성
-2. TypeScript 타입 정의 (필요시 `src/types/`에 추가)
-3. 필요한 경우 Zustand 스토어 업데이트
-
-### 그래프 알고리즘 수정
-
-`src/lib/graph.ts`에서 다음 함수들을 수정:
-
-- `buildGraph()`: MDX → 그래프 데이터 변환
-- `getCategoryAnchors()`: 카테고리별 앵커 포인트
-- `filterGraphData()`: 필터링 로직
+2. TypeScript 타입 정의 (필요시 `src/lib/supabase.ts`에 추가)
+3. 필요한 경우 Zustand 스토어 추가
 
 ### 스타일링
 
@@ -160,47 +239,47 @@ Tailwind CSS 클래스를 사용하여 스타일링하세요. 다크모드는 `d
 
 1. GitHub에 코드 푸시
 2. [Vercel](https://vercel.com)에서 프로젝트 연결
-3. 자동 배포 완료
+3. 환경 변수 설정:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+4. 자동 배포 완료
 
 ### 환경 변수
 
-현재는 환경 변수가 필요하지 않지만, 향후 Supabase 연동 시 다음이 필요할 수 있습니다:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
+Vercel 대시보드:
+1. Project Settings → Environment Variables
+2. 위 변수들을 추가
+3. 재배포
 
 ## 🐛 문제 해결
 
 ### 일반적인 문제
 
-1. **MDX 파일이 로드되지 않음**
-   - `content/` 디렉토리에 파일이 있는지 확인
-   - frontmatter 형식이 올바른지 확인
-   - `slug`가 고유한지 확인
+1. **Supabase 연결 오류**
+   - 환경 변수가 올바르게 설정되었는지 확인
+   - Supabase 프로젝트가 활성화되어 있는지 확인
 
-2. **그래프가 표시되지 않음**
-   - 브라우저 콘솔에서 오류 확인
-   - `me.mdx` 파일이 존재하는지 확인
-   - Node.js 버전이 18+ 인지 확인
+2. **이미지 업로드 실패**
+   - Supabase Storage 버킷이 생성되었는지 확인
+   - 버킷이 Public으로 설정되었는지 확인
+   - 파일 크기가 5MB 이하인지 확인
 
 3. **빌드 실패**
    - TypeScript 오류 확인
-   - MDX 파일의 frontmatter 스키마 검증 오류 확인
+   - 의존성이 올바르게 설치되었는지 확인
 
 ### 성능 최적화
 
-- 노드 수가 많을 경우 (100+): `GraphCanvas.tsx`에서 렌더링 최적화 옵션 조정
-- 메모리 사용량: 불필요한 리렌더링 방지를 위한 `useMemo`, `useCallback` 활용
+- 이미지 최적화: Next.js Image 컴포넌트 사용
+- 코드 스플리팅: dynamic import 활용
+- 메모이제이션: `useMemo`, `useCallback` 활용
 
 ## 📚 참고 자료
 
 - [Next.js 공식 문서](https://nextjs.org/docs)
-- [react-force-graph 문서](https://github.com/vasturiano/react-force-graph)
-- [MDX 공식 문서](https://mdxjs.com/)
+- [Supabase 공식 문서](https://supabase.com/docs)
 - [Tailwind CSS 문서](https://tailwindcss.com/docs)
-- [Zustand 문서](https://github.com/pmndrs/zustand)
+- [react-markdown 문서](https://github.com/remarkjs/react-markdown)
 
 ## 🤝 기여
 
@@ -212,7 +291,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ## 📄 라이선스
 
-이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 `LICENSE` 파일을 참조하세요.
+이 프로젝트는 MIT 라이선스 하에 배포됩니다.
 
 ## 📞 연락처
 

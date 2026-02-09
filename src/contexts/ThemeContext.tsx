@@ -26,6 +26,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setIsLightTheme(newTheme);
     document.body.classList.toggle('light-theme');
     localStorage.setItem('theme', newTheme ? 'light' : 'dark');
+    document.querySelectorAll('iframe').forEach((frame) => {
+      try {
+        frame.contentWindow?.postMessage({ type: 'THEME', theme: newTheme ? 'light' : 'dark' }, window.location.origin);
+      } catch (_) {}
+    });
   };
 
   return (
