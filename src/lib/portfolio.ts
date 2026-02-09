@@ -76,6 +76,12 @@ export async function updateProject(
   id: string,
   updates: Partial<Omit<PortfolioProject, 'id' | 'created_at'>>
 ): Promise<PortfolioProject> {
+  type SupabaseLikeError = {
+    message?: string;
+    hint?: string;
+    details?: string;
+  };
+
   const { data, error } = await supabase
     .from('portfolio_projects')
     .update({
@@ -89,11 +95,12 @@ export async function updateProject(
   if (error) {
     // Supabase 에러 객체를 표준 Error 로 래핑해서 상위에서 처리/표시하기 쉽게 만듭니다.
     console.error('프로젝트 수정 오류 (Supabase 원본):', error);
+    const e = error as SupabaseLikeError;
     const message =
       // Supabase PostgrestError 형태
-      (error as any).message ||
-      (error as any).hint ||
-      (error as any).details ||
+      e.message ||
+      e.hint ||
+      e.details ||
       '프로젝트 수정 중 알 수 없는 오류가 발생했습니다.';
     throw new Error(message);
   }

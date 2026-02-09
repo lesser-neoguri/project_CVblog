@@ -28,12 +28,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const messages: ChatMessage[] = Array.isArray(body.messages)
-      ? body.messages.filter(
-          (m: any) =>
-            m &&
-            (m.role === 'user' || m.role === 'assistant') &&
-            typeof m.content === 'string',
-        )
+      ? body.messages.filter((m: unknown): m is ChatMessage => {
+          if (!m || typeof m !== 'object') return false;
+          const msg = m as { role?: unknown; content?: unknown };
+          const isValidRole =
+            msg.role === 'user' || msg.role === 'assistant';
+          const isValidContent = typeof msg.content === 'string';
+          return isValidRole && isValidContent;
+        })
       : [];
 
     if (!messages.length) {

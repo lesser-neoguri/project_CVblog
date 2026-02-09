@@ -8,9 +8,15 @@ type Message = {
   source?: 'api' | 'mock';
 };
 
+type HyperclovaChatResponse = {
+  message?: string;
+  error?: string;
+  useFallback?: boolean;
+};
+
 async function callHyperclovaChat(
   messages: Message[],
-): Promise<{ message?: string; error?: string; useFallback?: boolean }> {
+): Promise<HyperclovaChatResponse> {
   const res = await fetch('/api/demo/hyperclovax-chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -18,14 +24,16 @@ async function callHyperclovaChat(
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
     }),
   });
-  const data = await res.json().catch(() => ({}));
+  const data: HyperclovaChatResponse = await res
+    .json()
+    .catch(() => ({} as HyperclovaChatResponse));
   if (!res.ok) {
     return {
-      error: (data as any).error || (data as any).message || `오류 ${res.status}`,
-      useFallback: Boolean((data as any).useFallback),
+      error: data.error || data.message || `오류 ${res.status}`,
+      useFallback: Boolean(data.useFallback),
     };
   }
-  return { message: (data as any).message ?? '' };
+  return { message: data.message ?? '' };
 }
 
 const MOCK_REPLIES: string[] = [

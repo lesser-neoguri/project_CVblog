@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
     const provider = body.provider === 'openai' || body.provider === 'upstage' ? body.provider : undefined;
     const modelOverride = typeof body.model === 'string' && body.model.trim() ? body.model.trim() : undefined;
 
-    const custom: CustomRag =
+    const custom: CustomRag | undefined =
       body.custom && typeof body.custom === 'object'
         ? {
             worldView: typeof body.custom.worldView === 'string' ? body.custom.worldView : undefined,
