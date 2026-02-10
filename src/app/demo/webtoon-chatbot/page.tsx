@@ -1065,7 +1065,8 @@ export default function WebtoonChatbotDemoPage() {
             <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--t4)' }}>
               <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>설정 페이지</a>에서
               OpenAI 또는 Upstage API 키를 저장하면 어디서든 채팅을 사용할 수 있습니다.
-              (또는 .env.local / Vercel 환경 변수에 OPENAI_API_KEY 또는 UPSTAGE_API_KEY 설정)
+              로컬은 .env.local에, <strong>배포(Vercel)는 환경 변수에 OPENAI_API_KEY 또는 UPSTAGE_API_KEY와
+              SUPABASE_SERVICE_ROLE_KEY</strong>를 설정하세요.
             </p>
           </div>
         )}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { WEBTOON_CHATBOT_CHUNKS } from '@/lib/demo-knowledge';
 import { getApiKeysFromDb, resolveChatApiKeys } from '@/lib/api-keys';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 
 const CHAT_MAX_TOKENS = 120;
 const MAX_REPLY_CHARS = 180;
@@ -306,10 +307,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: reply });
     }
 
+    const hint =
+      !getSupabaseAdmin() && !process.env.OPENAI_API_KEY?.trim() && !process.env.UPSTAGE_API_KEY?.trim()
+        ? ' 배포 환경(Vercel 등)에서는 SUPABASE_SERVICE_ROLE_KEY를 환경 변수에 넣어야 DB에 저장한 키를 사용할 수 있습니다.'
+        : '';
     return NextResponse.json(
       {
         message:
-          '채팅 API를 사용하려면 설정 페이지에서 OPENAI 또는 Upstage API 키를 저장해 주세요. (또는 .env.local / Vercel 환경 변수에 설정)',
+          '채팅 API를 사용하려면 설정 페이지에서 OPENAI 또는 Upstage API 키를 저장해 주세요. (또는 .env.local / Vercel 환경 변수에 OPENAI_API_KEY 또는 UPSTAGE_API_KEY 설정).' +
+          hint,
         useFallback: true,
       },
       { status: 503 }
