@@ -1,19 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { WEBTOON_CHATBOT_CHUNKS } from '@/lib/demo-knowledge';
-
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
-
-const upstage =
-  process.env.UPSTAGE_API_KEY
-    ? new OpenAI({
-        apiKey: process.env.UPSTAGE_API_KEY,
-        baseURL: process.env.UPSTAGE_BASE_URL || 'https://api.upstage.ai/v1/solar',
-      })
-    : null;
-
-// Upstage 모델: solar-mini, solar-pro (EduStage) 또는 upstage/solar-mini (v2). 콘솔 문서 참고.
-const UPSTAGE_CHAT_MODEL = process.env.UPSTAGE_CHAT_MODEL || 'solar-mini';
+import { getApiKeysFromDb, resolveChatApiKeys } from '@/lib/api-keys';
 
 const CHAT_MAX_TOKENS = 120;
 const MAX_REPLY_CHARS = 180;
@@ -59,9 +47,10 @@ function cosineSimilarity(a: number[], b: number[]): number {
 /** RAG: 유저 메시지와 관련된 지식 청크 top-k (임베딩 유사도) */
 async function retrieveChunks(
   userMessage: string,
+  openaiClient: OpenAI | null,
   topK: number = 3
 ): Promise<{ title: string; text: string }[]> {
-  const hasEmbedding = !!openai;
+  const hasEmbedding = !!openaiClient;
   if (!hasEmbedding) {
     // API 키 없으면 키워드 기반 폴백: 메시지에 단어가 포함된 청크 우선
     const words = userMessage.replace(/\s+/g, ' ').split(' ').filter(Boolean);
@@ -79,9 +68,9 @@ async function retrieveChunks(
 
   const embeddingModel = 'text-embedding-3-small';
   const [queryEmbRes, ...chunkEmbRes] = await Promise.all([
-    openai.embeddings.create({ model: embeddingModel, input: userMessage }),
+    openaiClient!.embeddings.create({ model: embeddingModel, input: userMessage }),
     ...WEBTOON_CHATBOT_CHUNKS.map((c) =>
-      openai.embeddings.create({ model: embeddingModel, input: `${c.title}\n${c.text}` })
+      openaiClient!.embeddings.create({ model: embeddingModel, input: `${c.title}\n${c.text}` })
     ),
   ]);
   const queryVec = queryEmbRes.data[0].embedding;
@@ -262,7 +251,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '메시지가 비어 있습니다.' }, { status: 400 });
     }
 
-    const retrieved = await retrieveChunks(lastContent, 3);
+    // 키: env 우선, 없으면 DB (배포 환경에서 DB에 저장된 키 사용)
+    const fromDb = await getApiKeysFromDb();
+    const keys = resolveChatApiKeys(process.env, fromDb);
+    const openai =
+      keys.openaiApiKey ? new OpenAI({ apiKey: keys.openaiApiKey }) : null;
+    const upstage =
+      keys.upstageApiKey
+        ? new OpenAI({
+            apiKey: keys.upstageApiKey,
+            baseURL: keys.upstageBaseUrl ?? 'https://api.upstage.ai/v1/solar',
+          })
+        : null;
+    const upstageChatModel = keys.upstageChatModel ?? 'solar-mini';
+
+    const retrieved = await retrieveChunks(lastContent, openai, 3);
     const systemWithRag = buildSystemPrompt(retrieved, custom, tuning);
 
     const chatMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
@@ -282,7 +285,7 @@ export async function POST(req: NextRequest) {
     const useOpenai = openai && (provider === 'openai' || !upstage);
 
     if (useUpstage && upstage) {
-      const model = modelOverride || UPSTAGE_CHAT_MODEL;
+      const model = modelOverride || upstageChatModel;
       const completion = await upstage.chat.completions.create({
         ...chatOptions,
         model,
@@ -305,7 +308,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       {
-        message: 'UPSTAGE_API_KEY 또는 OPENAI_API_KEY를 .env.local에 설정해 주세요. 지금은 시연용 응답만 가능합니다.',
+        message:
+          '채팅 API를 사용하려면 설정 페이지에서 OPENAI 또는 Upstage API 키를 저장해 주세요. (또는 .env.local / Vercel 환경 변수에 설정)',
         useFallback: true,
       },
       { status: 503 }

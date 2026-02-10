@@ -1063,8 +1063,9 @@ export default function WebtoonChatbotDemoPage() {
             <strong style={{ color: 'var(--accent)' }}>API 사용 불가</strong>
             <p style={{ margin: '4px 0 0', color: 'var(--t2)' }}>{apiError}</p>
             <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--t4)' }}>
-              프로젝트 루트에 .env.local 파일을 만들고 OPENAI_API_KEY 또는 UPSTAGE_API_KEY를 넣은 뒤 서버를 다시 실행하세요.
-              Upstage 사용 시 모델 오류(400)가 나면 UPSTAGE_CHAT_MODEL=solar-mini, UPSTAGE_BASE_URL=https://api.upstage.ai/v1/solar 를 추가해 보세요.
+              <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>설정 페이지</a>에서
+              OpenAI 또는 Upstage API 키를 저장하면 어디서든 채팅을 사용할 수 있습니다.
+              (또는 .env.local / Vercel 환경 변수에 OPENAI_API_KEY 또는 UPSTAGE_API_KEY 설정)
             </p>
           </div>
         )}

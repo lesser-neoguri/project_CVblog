@@ -8,6 +8,7 @@ const NAV = [
   { label: '블로그', path: '/posts' },
   { label: '프로젝트', path: '/projects' },
   { label: '논문 리뷰', path: '/papers' },
+  { label: '설정', path: '/settings' },
 ];
 
 export default function Navbar() {
