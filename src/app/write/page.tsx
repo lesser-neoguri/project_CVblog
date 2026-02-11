@@ -74,42 +74,24 @@ export default function WritePage() {
   };
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: isLightTheme ? '#FAF8F3' : '#1a1a1a',
-        color: isLightTheme ? '#111' : '#fafafa',
-        transition: 'background-color 0.3s ease, color 0.3s ease',
-        padding: '40px 20px',
-      }}
-    >
-      <div
-        style={{
-          maxWidth: '900px',
-          margin: '0 auto',
-        }}
-      >
-        <div
-          style={{
-            padding: '32px 40px',
-            borderRadius: '20px',
-            background: isLightTheme
-              ? 'rgba(255, 255, 255, 0.6)'
-              : 'rgba(255, 255, 255, 0.08)',
-            border: isLightTheme
-              ? '1px solid rgba(0, 0, 0, 0.08)'
-              : '1px solid rgba(255, 255, 255, 0.14)',
-            boxShadow: isLightTheme
-              ? '0 12px 30px rgba(0,0,0,0.08)'
-              : '0 12px 30px rgba(0,0,0,0.35)',
-            backdropFilter: 'blur(12px)',
-          }}
-        >
-          <h1 style={{ margin: 0, fontSize: '28px', fontWeight: 700 }}>
+    <main>
+      {/* Header: 다른 페이지와 톤 맞추기 */}
+      <section style={{ padding: '80px 32px 40px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ maxWidth: 'var(--content-w)', margin: '0 auto' }}>
+          <p className="mono accent" style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '12px' }}>BLOG</p>
+          <h1 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.2, marginBottom: '8px' }}>
             새 글 작성
           </h1>
+          <p style={{ fontSize: '14px', color: 'var(--t3)' }}>
+            포스트 제목, 내용, 이미지 등을 입력하고 필요하면 바로 발행할 수 있습니다.
+          </p>
+        </div>
+      </section>
 
-          <form onSubmit={handleSubmit} style={{ marginTop: '32px' }}>
+      {/* Form section: 플랫 & 미니멀 */}
+      <section style={{ padding: '40px 32px 120px' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+          <form onSubmit={handleSubmit}>
             {/* 제목 입력 */}
             <div style={{ marginBottom: '24px' }}>
               <label
@@ -131,16 +113,12 @@ export default function WritePage() {
                 placeholder="글 제목을 입력하세요"
                 style={{
                   width: '100%',
-                  padding: '12px 16px',
-                  fontSize: '16px',
-                  border: isLightTheme
-                    ? '1px solid rgba(0, 0, 0, 0.1)'
-                    : '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '8px',
-                  background: isLightTheme
-                    ? 'rgba(255, 255, 255, 0.8)'
-                    : 'rgba(0, 0, 0, 0.2)',
-                  color: isLightTheme ? '#111' : '#fafafa',
+                  padding: '10px 12px',
+                  fontSize: '14px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  background: 'var(--bg-alt)',
+                  color: 'var(--t1)',
                   outline: 'none',
                 }}
               />
@@ -167,16 +145,12 @@ export default function WritePage() {
                 placeholder="비워두면 제목에서 자동 생성됩니다"
                 style={{
                   width: '100%',
-                  padding: '12px 16px',
+                  padding: '10px 12px',
                   fontSize: '14px',
-                  border: isLightTheme
-                    ? '1px solid rgba(0, 0, 0, 0.1)'
-                    : '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '8px',
-                  background: isLightTheme
-                    ? 'rgba(255, 255, 255, 0.8)'
-                    : 'rgba(0, 0, 0, 0.2)',
-                  color: isLightTheme ? '#111' : '#fafafa',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  background: 'var(--bg-alt)',
+                  color: 'var(--t1)',
                   outline: 'none',
                 }}
               />
@@ -268,9 +242,8 @@ export default function WritePage() {
                 style={{
                   padding: '12px 16px',
                   marginBottom: '24px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '8px',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
                   color: '#ef4444',
                   fontSize: '14px',
                 }}
@@ -284,16 +257,10 @@ export default function WritePage() {
               <button
                 type="submit"
                 disabled={isSaving}
+                className="btn-primary"
                 style={{
-                  padding: '12px 32px',
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  background: isLightTheme ? '#111' : '#fafafa',
-                  color: isLightTheme ? '#fafafa' : '#111',
-                  border: 'none',
-                  borderRadius: '8px',
+                  opacity: isSaving ? 0.7 : 1,
                   cursor: isSaving ? 'not-allowed' : 'pointer',
-                  opacity: isSaving ? 0.6 : 1,
                 }}
               >
                 {isSaving ? '저장 중...' : '저장'}
@@ -302,25 +269,14 @@ export default function WritePage() {
               <button
                 type="button"
                 onClick={() => router.back()}
-                style={{
-                  padding: '12px 32px',
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  background: 'transparent',
-                  color: isLightTheme ? '#111' : '#fafafa',
-                  border: isLightTheme
-                    ? '1px solid rgba(0, 0, 0, 0.2)'
-                    : '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                }}
+                className="btn-ghost"
               >
                 취소
               </button>
             </div>
           </form>
         </div>
-      </div>
+      </section>
 
       {/* 모달 */}
       <Modal

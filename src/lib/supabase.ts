@@ -25,6 +25,8 @@ export interface Profile {
   created_at: string;
   updated_at: string;
   username: string | null;
+  // 사용자 권한 구분용 필드 (예: 'user' | 'admin')
+  role?: 'user' | 'admin';
   full_name: string | null;
   avatar_url: string | null;
   email: string | null;
@@ -279,9 +281,52 @@ export async function signOut() {
 }
 
 export async function getCurrentUser() {
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error) throw error;
-  return user;
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error) {
+      // 세션이 없을 때 발생하는 AuthSessionMissingError는 null을 반환하도록 처리
+      if ((error as any).name === 'AuthSessionMissingError' || error.message === 'Auth session missing!') {
+        return null;
+      }
+      throw error;
+    }
+    return user;
+  } catch (err: any) {
+    if (err?.name === 'AuthSessionMissingError' || err?.message === 'Auth session missing!') {
+      return null;
+    }
+    throw err;
+  }
+}
+
+// 현재 로그인 사용자의 역할(role)을 profiles 테이블 기준으로 조회
+// - 프로필이 없거나 role이 없으면 'user'
+// - 로그인하지 않았으면 null
+export async function getCurrentUserRole(): Promise<'admin' | 'user' | null> {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  const email = user.email;
+  if (!email) return 'user';
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (error) {
+      console.error('프로필 role 조회 오류:', error);
+      return 'user';
+    }
+
+    const role = (data as { role?: string } | null)?.role;
+    return role === 'admin' ? 'admin' : 'user';
+  } catch (err) {
+    console.error('프로필 role 조회 중 예외:', err);
+    return 'user';
+  }
 }
 
 export async function resetPassword(email: string) {

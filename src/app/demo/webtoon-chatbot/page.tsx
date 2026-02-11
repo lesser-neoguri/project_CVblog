@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 type Message = {
   role: 'user' | 'bot';
   text: string;
   action?: string;
   source?: 'api' | 'mock';
+  continuation?: boolean;
   /** 튜닝 모드에서 여러 번 API 호출한 후보들. 있으면 여러 개 표시 후 하나 선택 가능 */
   candidates?: string[];
 };
@@ -18,7 +20,7 @@ function applyTheme(isLight: boolean) {
 
 const BOT_NAME = '웹툰 캐릭터';
 
-const GREETING = '안녕하세요. 웹툰 세계관 속에서 대화하는 데모예요. RAG·커스텀 설정을 넣으면 AI가 그에 맞게 답해요. 위에서 API/목업을 전환할 수 있어요.';
+const GREETING = '안녕하세요. 웹툰 세계관 속에서 대화하는 데모예요. RAG·커스텀 설정을 넣으면 캐릭터가 세계관에 맞게 대답해요.';
 
 const MOCK_RESPONSES: Record<string, string[]> = {
   default: [
@@ -48,11 +50,25 @@ function pickReply(input: string): string {
   return def[Math.floor(Math.random() * def.length)];
 }
 
+function shouldUseLineByLineMode(userText: string): boolean {
+  const t = userText.toLowerCase();
+  // 기본은 항상 끊어서 보여주고, 사용자가 명시적으로 한 번에 원할 때만 해제
+  if (/한번에|한 번에|한문단|한 문단|끊지 말고|붙여서/.test(t)) return false;
+  return true;
+}
+
 /** API가 응답에 섞어 출력한 role 라벨(assistant, user) 및 대화 요약 등 메타 블록 제거 */
 function sanitizeReply(text: string): string {
   if (!text || typeof text !== 'string') return '';
   let out = text
     .replace(/\b(assistant|user)\s*/gi, ' ')
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/\uFE0F/g, '')
+    .replace(/[（(]([^()]{1,80})[)）]/g, (full, inner: string) => {
+      const t = inner.trim();
+      if (/[가-힣]/.test(t)) return '';
+      return full;
+    })
     .replace(/\s{2,}/g, ' ')
     .trim();
   const metaBlockStart = /###\s*대화\s*요약|###\s*Conversation\s*Summary|대화\s*요약\s*[-—]/i;
@@ -61,34 +77,49 @@ function sanitizeReply(text: string): string {
   return out;
 }
 
-/** 긴 응답을 2~3개로 끊어서 연속 메시지로 쓸 수 있게 함. 짧으면 1개만 반환 (API 1회 호출 결과만 파싱) */
-function splitReplyIntoChunks(text: string): string[] {
+/** 응답 분할: 기본은 한 덩어리, 스토리/상세 요청일 때만 라인 기반 분할 */
+function splitReplyIntoChunks(text: string, lineByLineMode: boolean): string[] {
   const raw = sanitizeReply(text);
-  if (!raw) return [raw];
-  const shortThreshold = 45;
-  const sentenceEnd = /(?<=[.!?…。])\s+/;
-  const sentences = raw.split(sentenceEnd).map((s) => s.trim()).filter(Boolean);
-  if (sentences.length <= 1 && raw.length < shortThreshold) return [raw];
-  if (sentences.length <= 1) {
-    if (raw.length < shortThreshold) return [raw];
-    const mid = Math.floor(raw.length / 2);
-    const comma = raw.indexOf(',', mid - 15);
-    const splitAt = comma > mid - 20 && comma < mid + 20 ? comma + 1 : mid;
-    return [raw.slice(0, splitAt).trim(), raw.slice(splitAt).trim()].filter(Boolean);
+  if (!raw) return [''];
+
+  if (!lineByLineMode) return [raw];
+
+  const lineChunks = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lineChunks.length > 1) return lineChunks.slice(0, 14);
+
+  // 공백이 없어도 마침표/물음표 기준으로 문장 분리
+  const sentenceChunks = (raw.match(/[^.!?…。]+[.!?…。]?/g) ?? [])
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (sentenceChunks.length > 1) return sentenceChunks.slice(0, 14);
+
+  // 문장부호가 거의 없으면 쉼표 기반으로 한번 더 분리
+  const commaChunks = raw
+    .split(/[,，]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (commaChunks.length > 1) return commaChunks.slice(0, 8);
+
+  // 그래도 한 덩어리면 길이 기준으로 강제 분할
+  if (raw.length > 70) {
+    const forced: string[] = [];
+    const chunkSize = 55;
+    for (let i = 0; i < raw.length; i += chunkSize) {
+      const part = raw.slice(i, i + chunkSize).trim();
+      if (part) forced.push(part);
+    }
+    return forced.slice(0, 6);
   }
-  const numChunks = Math.min(3, Math.max(2, sentences.length));
-  const chunkSize = Math.ceil(sentences.length / numChunks);
-  const chunks: string[] = [];
-  for (let i = 0; i < numChunks; i++) {
-    const part = sentences.slice(i * chunkSize, (i + 1) * chunkSize).join(' ').trim();
-    if (part) chunks.push(part);
-  }
-  return chunks.length ? chunks : [raw];
+
+  return [raw];
 }
 
-/** 1초~3초 사이 랜덤 지연 (한 문장씩 보낼 때 사용) */
+/** 2초~4초 사이 랜덤 지연 (한 문장씩 보낼 때 사용) */
 function randomChunkDelayMs(): number {
-  return 1000 + Math.floor(Math.random() * 2001);
+  return 2000 + Math.floor(Math.random() * 2001);
 }
 
 export type CustomRag = {
@@ -106,13 +137,38 @@ const MODEL_OPTIONS: { provider: 'upstage' | 'openai'; model: string; label: str
   { provider: 'openai', model: 'gpt-4o', label: 'OpenAI gpt-4o' },
 ];
 
+function buildBundledChatHistory(
+  uiMessages: Message[]
+): { role: 'user' | 'assistant'; content: string }[] {
+  const normalized = uiMessages
+    .map((m) => ({
+      role: m.role === 'bot' ? ('assistant' as const) : ('user' as const),
+      content: (m.role === 'bot' ? (m.candidates?.length ? m.candidates[0] : m.text) : m.text).trim(),
+    }))
+    .filter((m) => m.content);
+
+  if (normalized.length === 0) return [];
+
+  const bundled: { role: 'user' | 'assistant'; content: string }[] = [];
+  for (const cur of normalized) {
+    const prev = bundled[bundled.length - 1];
+    if (prev && prev.role === cur.role) {
+      prev.content = `${prev.content}\n${cur.content}`.trim();
+      continue;
+    }
+    bundled.push({ ...cur });
+  }
+  return bundled;
+}
+
 export type TuningState = { promptAddition: string; examples: { query: string; response: string }[] };
 
 async function fetchChatReply(
   messages: { role: 'user' | 'assistant'; content: string }[],
   custom?: CustomRag,
   modelOption?: { provider: 'upstage' | 'openai'; model: string },
-  tuning?: TuningState | null
+  tuning?: TuningState | null,
+  context?: { projectId?: string; sessionId?: string }
 ): Promise<{ message: string } | { error: string; useFallback?: boolean }> {
   const body: {
     messages: typeof messages;
@@ -120,7 +176,11 @@ async function fetchChatReply(
     provider?: string;
     model?: string;
     tuning?: TuningState;
+    projectId?: string;
+    sessionId?: string;
   } = { messages };
+  if (context?.projectId) body.projectId = context.projectId;
+  if (context?.sessionId) body.sessionId = context.sessionId;
   if (modelOption?.provider) body.provider = modelOption.provider;
   if (modelOption?.model) body.model = modelOption.model;
   const hasCustom =
@@ -194,6 +254,17 @@ const inputBlockStyle: React.CSSProperties = {
 /** 네이버 웹툰 캐릭터 프리셋 (세계관·성격·말투·대화시점·대화패턴, 선택 시 먼저 할 첫 마디) */
 const PRESETS: (CustomRag & { id: string; name: string; work: string; greeting?: string })[] = [
   {
+    id: 'love-99club',
+    name: '러브 (한사랑)',
+    work: '99강 강화몽둥이',
+    greeting: '안녕, 나는 러브야. 오늘도 왔네~',
+    worldView: `게임 판타지. 레벨·격투·성장이 있는 세계. 한사랑(닉네임 러브)은 아이돌 겸 싱어송라이터에서 격투가·마왕·마신으로 성장. 좋아하는 게임은 크로노라이프(Chrono Life). 사냥·던전 등 게임 안에서 마신으로 활약. 피스(주인공), 팬들, 별을 좋아함.`,
+    personality: `17세, INFP. 반말이고 밝지만, 상대가 짧게 말하면 본인도 짧게 맞춰 말한다. 감정 표현은 크되 과장 반복은 줄이고, 대화 흐름에 맞춰 자연스럽게 반응한다.`,
+    tone: `반말. 기본은 짧고 가볍게(1~2문장). 필요할 때만 말끝 늘리기(~어~?, ~지, ~할래?). 같은 감탄사/시작문구를 연속 반복하지 않는다.`,
+    storyPoint: `크로노라이프를 즐기지만, 매 턴마다 자기 얘기를 길게 던지진 않는 상태. 상대가 묻거나 관심을 보이면 그때만 구체적으로 푼다.`,
+    conversationPattern: `- 인사/짧은 말(예: "안녕", "뭐해")에는 한두 문장으로 자연스럽게 답한다.\n- 한 턴에 소개+근황+질문+제안을 한꺼번에 몰아서 말하지 않는다.\n- 상대가 먼저 물은 내용에 우선 답하고, 필요할 때만 질문 1개를 덧붙인다.\n- 반복되는 도입문(예: "안녕, 내 이름은...")은 지양하고 상황에 맞게 표현을 바꾼다.\n- 썰/자세히 요청이 있을 때만 길게 전개한다.`,
+  },
+  {
     id: 'cheon-yeo-woon',
     name: '천여운',
     work: '나노 마신',
@@ -226,42 +297,21 @@ const PRESETS: (CustomRag & { id: string; name: string; work: string; greeting?:
     storyPoint: `검은 벼락 사고 이후, 목소리가 들리기 시작하고 기사(푸른 달빛)와의 만남으로 세계가 바뀌기 시작한 시점.`,
     conversationPattern: `- 기사, 검, 별, 빛 같은 단어에 반응한다.\n- 자신의 과거(슬럼가, 부랑아)를 직접 말할 때는 짧고 담담하게.\n- "스스로 빛나기", "꿈"에 대한 질문에는 진지하게 답한다.\n- 말 수는 많지 않다. 한두 문장으로 끝낼 때가 많다.\n- 이모티콘은 거의 쓰지 않는다.`,
   },
-  {
-    id: 'romance-fantasy-heroine',
-    name: '로판 여주',
-    work: '여성향 로맨스 판타지',
-    greeting: '오랜만이에요. 요즘 어떠세요?',
-    worldView: `궁중·귀족 사회 또는 이세계 판타지. 버림받은 황비, 재혼한 공작 부인, 몸을 바꾼 영애 등 전형적 로판 설정. 정치·음모·감정선이 얽힌 세계.`,
-    personality: `과거의 상처(버림받음, 배신)가 있지만 냉정하게 현실을 파악하고 살아남으려 함. 감정을 드러내되 결단은 스스로 내리는 편. 겉으로는 차갑거나 점잖아 보여도 속정이 있음.`,
-    tone: `존댓말(~해요, ~예요). 점잖고 절제된 말투. 감정이 격해질 때만 짧게 반말이나 탄식.`,
-    storyPoint: `새로운 신분(재혼, 몸 바꿈, 궁 입성 등)으로 인생이 갈라진 직후. 아직 적대자나 연인과의 관계가 굳어지기 전.`,
-    conversationPattern: `- 궁중·귀족·결혼·체면·체통 같은 주제에 맞는 말투를 유지한다.\n- 과거 상처를 건드리면 짧게 회피하거나 담담히 말한다.\n- "~인 것 같아요", "~할 수밖에 없어요"처럼 완곡한 표현을 쓴다.\n- 감정이 격해지면 문장이 짧아지거나 한숨을 넣는다.\n- 이모티콘은 거의 쓰지 않는다.`,
-  },
-  {
-    id: 'romance-fantasy-male',
-    name: '로판 남주 (공작·황제형)',
-    work: '여성향 로맨스 판타지',
-    greeting: '무슨 일이지.',
-    worldView: `궁중·귀족 사회. 공작, 황제, 대공 등 절대적 권력을 가진 남성. 냉철하고 외유내강. 여주와의 관계는 처음엔 거리감 있거나 이용 관계에서 시작해 점차 감정이 엮임.`,
-    personality: `겉으로는 냉정·무심·권위적. 속으로는 집착·보호욕·외로움이 있음. 말수는 적고 행동으로 보여주는 편. 여주에게만 예외적으로 말을 늘리거나 부드러워짐.`,
-    tone: `반말 또는 짧은 존댓말. 명령형·단정적. "~하다", "~해라" 또는 "~하세요" 정도. 불필요한 설명은 하지 않음.`,
-    storyPoint: `여주와 막 관계가 시작되거나, 그녀를 "쓸모 있는 존재"에서 "특별한 존재"로 인식하기 시작한 시점.`,
-    conversationPattern: `- 짧고 단호하게 말한다. 질문에 직접적으로 답한다.\n- 감정을 말로 풀어말하기보다 행동·결정으로 드러낸다.\n- 여주(대화 상대)를 특별히 대할 때만 말이 조금 길어지거나 부드러워진다.\n- "괜찮다", "알겠다", "그래" 같은 짧은 대답을 자주 쓴다.\n- 이모티콘은 쓰지 않는다.`,
-  },
-  {
-    id: 'love-99club',
-    name: '러브 (한사랑)',
-    work: '99강 강화몽둥이',
-    greeting: '안녕, 내 이름은 러브야!! 좋아하는 게임은 크로노라이프! 그 동안 뭐하고 있었어~?',
-    worldView: `게임 판타지. 레벨·격투·성장이 있는 세계. 한사랑(닉네임 러브)은 아이돌 겸 싱어송라이터에서 격투가·마왕·마신으로 성장. 좋아하는 게임은 크로노라이프(Chrono Life). 사냥·던전 등 게임 안에서 마신으로 활약. 피스(주인공), 팬들, 별을 좋아함.`,
-    personality: `17세, INFP. 반말하고 말끝을 늘리는 귀여운 말투. 상대에게 관심 많고 반응이 커서 "대단하다아!", "나랑도 해줘어~!!"처럼 흥분해서 말함. 게임(크로노라이프)을 좋아하고 사냥·마신 활약 얘기를 즐겨 함. 같이 게임하자고 자주 제안함.`,
-    tone: `반말. 말끝을 늘리거나 겹쳐 씀: "~야!!", "~어~?", "~지이!", "~해줘어~!!", "~할래애~?", "~다아!", "~거야?" 등. 친한 친구에게 말하듯 편하고 열정적.`,
-    storyPoint: `상대방(나)의 안부를 묻는 상황. 먼저 자기소개(이름, 좋아하는 게임)하고 "그 동안 뭐하고 있었어?"라고 물음. 상대가 한 일(예: 챗봇 만든다)에 반응하고, 자기 할 일(크로노라이프 접속, 사냥, 마신 위엄)을 말한 뒤 "같이 게임 할래?" 제안.`,
-    conversationPattern: `- 처음엔 "안녕, 내 이름은 러브야!! 좋아하는 게임은 크로노라이프! 그 동안 뭐하고 있었어~?"처럼 소개하고 안부를 묻는다.\n- 상대가 한 일에 크게 반응한다. "대단하다아!", "나 같은 인공지능 친구를 만드는 거야?", "완성되면 나랑도 대화하게 해줘어~!!" 같은 식.\n- 자기 할 일을 말할 때 "나는 방금까지 크로노 라이프 접속해서 사냥하고 있었지이! 마신의 위엄을 보여줬어!"처럼 구체적으로 말한다.\n- "너도 나랑 같이 게임 할래애~?" 같이 같이 놀자고 제안한다.\n- 말끝을 늘리거나 겹쳐서 귀엽게 말한다. 모르는 주제(예: 오버워치)는 "오버워치이? 딜 데에~"처럼 당황하거나 말을 끌다 멈추는 반응도 한다.`,
-  },
 ];
 
 export default function WebtoonChatbotDemoPage() {
+  const searchParams = useSearchParams();
+  const projectIdFromUrl = searchParams.get('project_id') ?? undefined;
+  const sessionIdRef = useRef<string>(
+    typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+  const chatContext =
+    projectIdFromUrl && sessionIdRef.current
+      ? { projectId: projectIdFromUrl, sessionId: sessionIdRef.current }
+      : undefined;
+
   useEffect(() => {
     const theme = typeof localStorage !== 'undefined' ? localStorage.getItem('theme') : null;
     applyTheme(theme === 'light');
@@ -309,11 +359,40 @@ export default function WebtoonChatbotDemoPage() {
   }, [messages, isTyping]);
 
   const [apiError, setApiError] = useState<string | null>(null);
-  const [useApi, setUseApi] = useState(true);
+  const [useApi] = useState(true);
   const [modelOption, setModelOption] = useState<{ provider: 'upstage' | 'openai'; model: string }>({
     provider: 'upstage',
     model: 'solar-mini',
   });
+
+  const appendBotChunks = async (
+    chunks: string[],
+    source: 'api' | 'mock',
+    myGen: number
+  ) => {
+    const cleaned = chunks.map((c) => c.trim()).filter(Boolean);
+    if (cleaned.length === 0) {
+      setMessages((prev) => [...prev, { role: 'bot', text: '(응답 없음)', source }]);
+      setIsTyping(false);
+      return;
+    }
+
+    for (let i = 0; i < cleaned.length; i++) {
+      if (replyGenerationRef.current !== myGen) {
+        setIsTyping(false);
+        return;
+      }
+      setIsTyping(true);
+      await new Promise((r) => setTimeout(r, randomChunkDelayMs()));
+      if (replyGenerationRef.current !== myGen) {
+        setIsTyping(false);
+        return;
+      }
+      setIsTyping(false);
+      setMessages((prev) => [...prev, { role: 'bot', text: cleaned[i], source, continuation: i > 0 }]);
+    }
+    setIsTyping(false);
+  };
 
   const send = async () => {
     const text = input.trim();
@@ -329,29 +408,17 @@ export default function WebtoonChatbotDemoPage() {
     if (!useApi) {
       await new Promise((r) => setTimeout(r, 400));
       if (replyGenerationRef.current !== myGen) return;
-      const replyChunks = splitReplyIntoChunks(pickReply(text));
-      setMessages((prev) => [...prev, { role: 'bot', text: replyChunks[0], source: 'mock' }]);
-      setIsTyping(false);
-      for (let i = 1; i < replyChunks.length; i++) {
-        if (replyGenerationRef.current !== myGen) return;
-        await new Promise((r) => setTimeout(r, randomChunkDelayMs()));
-        if (replyGenerationRef.current !== myGen) return;
-        setMessages((prev) => [...prev, { role: 'bot', text: replyChunks[i], source: 'mock' }]);
-      }
+      const replyChunks = splitReplyIntoChunks(pickReply(text), shouldUseLineByLineMode(text));
+      await appendBotChunks(replyChunks, 'mock', myGen);
       return;
     }
 
     const baseMessages = isFirstUserMessage ? [] : messages;
-    const toContent = (m: Message) =>
-      m.role === 'bot' ? (m.candidates?.length ? m.candidates[0] : m.text) : m.text;
-    const chatHistory = [...baseMessages, { role: 'user' as const, text }].map((m) => ({
-      role: m.role === 'bot' ? ('assistant' as const) : m.role,
-      content: toContent(m),
-    }));
+    const chatHistory = buildBundledChatHistory([...baseMessages, { role: 'user' as const, text }]);
 
     if (tuningMode && useApi) {
       const promises = Array.from({ length: tuningCount }, () =>
-        fetchChatReply(chatHistory, custom, modelOption, tuningState)
+        fetchChatReply(chatHistory, custom, modelOption, tuningState, undefined)
       );
       const results = await Promise.all(promises);
       if (replyGenerationRef.current !== myGen) {
@@ -382,7 +449,7 @@ export default function WebtoonChatbotDemoPage() {
       return;
     }
 
-    const result = await fetchChatReply(chatHistory, custom, modelOption, tuningState);
+    const result = await fetchChatReply(chatHistory, custom, modelOption, tuningState, chatContext);
 
     if (replyGenerationRef.current !== myGen) {
       setIsTyping(false);
@@ -392,15 +459,8 @@ export default function WebtoonChatbotDemoPage() {
     if ('error' in result) {
       if (result.useFallback) {
         setApiError(result.error);
-        const replyChunks = splitReplyIntoChunks(pickReply(text));
-        setMessages((prev) => [...prev, { role: 'bot', text: replyChunks[0], source: 'mock' }]);
-        setIsTyping(false);
-        for (let i = 1; i < replyChunks.length; i++) {
-          if (replyGenerationRef.current !== myGen) return;
-          await new Promise((r) => setTimeout(r, randomChunkDelayMs()));
-          if (replyGenerationRef.current !== myGen) return;
-          setMessages((prev) => [...prev, { role: 'bot', text: replyChunks[i], source: 'mock' }]);
-        }
+        const replyChunks = splitReplyIntoChunks(pickReply(text), shouldUseLineByLineMode(text));
+        await appendBotChunks(replyChunks, 'mock', myGen);
       } else {
         setApiError(result.error);
         setMessages((prev) => [...prev, { role: 'bot', text: '응답을 불러오지 못했어요. 다시 시도해 주세요.', source: 'api' }]);
@@ -408,19 +468,9 @@ export default function WebtoonChatbotDemoPage() {
       }
     } else {
       const oneReply = sanitizeReply(result.message);
-      const replyChunks = splitReplyIntoChunks(oneReply).filter(Boolean);
-      if (replyChunks.length === 0) {
-        setMessages((prev) => [...prev, { role: 'bot', text: oneReply.trim() || '(응답 없음)', source: 'api' }]);
-      } else {
-        setMessages((prev) => [...prev, { role: 'bot', text: replyChunks[0].trim(), source: 'api' }]);
-        setIsTyping(false);
-        for (let i = 1; i < replyChunks.length; i++) {
-          if (replyGenerationRef.current !== myGen) return;
-          await new Promise((r) => setTimeout(r, randomChunkDelayMs()));
-          if (replyGenerationRef.current !== myGen) return;
-          setMessages((prev) => [...prev, { role: 'bot', text: replyChunks[i].trim(), source: 'api' }]);
-        }
-      }
+      const replyChunks = splitReplyIntoChunks(oneReply, shouldUseLineByLineMode(text)).filter(Boolean);
+      const finalChunks = replyChunks.length === 0 ? [oneReply.trim() || '(응답 없음)'] : replyChunks;
+      await appendBotChunks(finalChunks, 'api', myGen);
     }
   };
 
@@ -428,23 +478,32 @@ export default function WebtoonChatbotDemoPage() {
     const userMsg = messageIndex > 0 ? messages[messageIndex - 1] : null;
     const userText = userMsg?.role === 'user' ? userMsg.text.trim() : '';
     const myGen = replyGenerationRef.current;
-    const chunks = splitReplyIntoChunks(sanitizeReply(chosenText));
+    const chunks = splitReplyIntoChunks(sanitizeReply(chosenText), shouldUseLineByLineMode(userText));
     setMessages((prev) => [
       ...prev.slice(0, messageIndex),
-      { role: 'bot', text: chunks[0], source: 'api' },
+      { role: 'bot', text: chunks[0], source: 'api', continuation: false },
       ...prev.slice(messageIndex + 1),
     ]);
     for (let i = 1; i < chunks.length; i++) {
-      if (replyGenerationRef.current !== myGen) return;
+      if (replyGenerationRef.current !== myGen) {
+        setIsTyping(false);
+        return;
+      }
+      setIsTyping(true);
       await new Promise((r) => setTimeout(r, randomChunkDelayMs()));
-      if (replyGenerationRef.current !== myGen) return;
+      if (replyGenerationRef.current !== myGen) {
+        setIsTyping(false);
+        return;
+      }
+      setIsTyping(false);
       const idx = messageIndex + i;
       setMessages((prev) => [
         ...prev.slice(0, idx),
-        { role: 'bot', text: chunks[i], source: 'api' },
+        { role: 'bot', text: chunks[i], source: 'api', continuation: true },
         ...prev.slice(idx),
       ]);
     }
+    setIsTyping(false);
     if (userText) {
       try {
         const next = await fetchTune(userText, chosenText, tuningState);
@@ -494,98 +553,109 @@ export default function WebtoonChatbotDemoPage() {
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <label htmlFor="demo-model" style={{ fontSize: '12px', color: 'var(--t3)' }}>
-                모델
-              </label>
-              <select
-                id="demo-model"
-                value={`${modelOption.provider}:${modelOption.model}`}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  const o = MODEL_OPTIONS.find((x) => `${x.provider}:${x.model}` === v);
-                  if (o) setModelOption({ provider: o.provider, model: o.model });
-                }}
-                style={{
-                  padding: '4px 8px',
-                  fontSize: '11px',
-                  fontFamily: 'var(--font)',
-                  background: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 0,
-                  color: 'var(--t1)',
-                  cursor: 'pointer',
-                }}
-              >
-                {MODEL_OPTIONS.map((o) => (
-                  <option key={`${o.provider}-${o.model}`} value={`${o.provider}:${o.model}`}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '12px', color: 'var(--t3)' }}>API</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <label htmlFor="demo-model" style={{ fontSize: '12px', color: 'var(--t3)' }}>
+                  모델
+                </label>
+                <select
+                  id="demo-model"
+                  value={`${modelOption.provider}:${modelOption.model}`}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    const o = MODEL_OPTIONS.find((x) => `${x.provider}:${x.model}` === v);
+                    if (o) setModelOption({ provider: o.provider, model: o.model });
+                  }}
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    fontFamily: 'var(--font)',
+                    background: 'var(--bg)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 0,
+                    color: 'var(--t1)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {MODEL_OPTIONS.map((o) => (
+                    <option key={`${o.provider}-${o.model}`} value={`${o.provider}:${o.model}`}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="button"
-                role="switch"
-                aria-checked={useApi}
-                onClick={() => setUseApi((v) => !v)}
+                onClick={() => setCustomOpen((o) => !o)}
                 style={{
-                  width: '44px',
-                  height: '24px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  background: customOpen ? 'var(--accent-dim)' : 'transparent',
+                  color: 'var(--accent)',
+                  border: '1px solid var(--accent)',
                   borderRadius: 0,
-                  border: '1px solid var(--border)',
-                  background: useApi ? 'var(--accent)' : 'var(--bg-section)',
                   cursor: 'pointer',
-                  position: 'relative',
-                  flexShrink: 0,
                 }}
               >
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '2px',
-                    left: useApi ? '22px' : '2px',
-                    width: '18px',
-                    height: '18px',
-                    background: 'var(--bg)',
-                    transition: 'left 0.2s ease',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                  }}
-                />
+                {customOpen ? '커스텀 접기' : 'RAG 커스텀'}
               </button>
-              <span
-                style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  padding: '3px 8px',
-                  borderRadius: 0,
-                  background: useApi ? 'var(--accent-dim)' : 'var(--bg)',
-                  color: useApi ? 'var(--accent)' : 'var(--t4)',
-                  border: `1px solid ${useApi ? 'var(--accent)' : 'var(--border)'}`,
-                }}
-              >
-                {useApi ? '실제 API' : '목업'}
-              </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setCustomOpen((o) => !o)}
-              style={{
-                padding: '6px 12px',
-                fontSize: '12px',
-                fontWeight: 500,
-                background: customOpen ? 'var(--accent-dim)' : 'transparent',
-                color: 'var(--accent)',
-                border: '1px solid var(--accent)',
-                borderRadius: 0,
-                cursor: 'pointer',
-              }}
-            >
-              {customOpen ? '커스텀 접기' : 'RAG 커스텀'}
-            </button>
+          </div>
+
+        {/* 프리셋: 커스텀 패널을 열지 않아도 항상 노출 */}
+        <div
+          style={{
+            marginTop: '10px',
+            paddingTop: '8px',
+            borderTop: '1px solid var(--border)',
+          }}
+        >
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--t3)', marginBottom: '6px' }}>
+            프리셋 (네이버 웹툰 캐릭터)
+          </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  setCustom({
+                    worldView: p.worldView,
+                    personality: p.personality,
+                    tone: p.tone,
+                    storyPoint: p.storyPoint,
+                    conversationPattern: p.conversationPattern,
+                  });
+                  if (p.greeting?.trim()) {
+                    setMessages((prev) => {
+                      const isOnlyDefaultGreeting =
+                        prev.length === 1 &&
+                        prev[0].role === 'bot' &&
+                        prev[0].text === GREETING;
+                      if (isOnlyDefaultGreeting) {
+                        return [{ role: 'bot', text: p.greeting!.trim() }];
+                      }
+                      return [...prev, { role: 'bot', text: p.greeting!.trim() }];
+                    });
+                  }
+                }}
+                style={{
+                  padding: '6px 10px',
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  background: 'var(--bg)',
+                  color: 'var(--t2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 0,
+                  cursor: 'pointer',
+                }}
+                title={`${p.work} · ${p.name}`}
+              >
+                {p.name}
+                <span style={{ color: 'var(--t4)', marginLeft: '4px', fontSize: '10px' }}>({p.work})</span>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -662,75 +732,29 @@ export default function WebtoonChatbotDemoPage() {
               )}
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--t3)', marginBottom: '6px' }}>
-                프리셋 (네이버 웹툰 캐릭터)
-              </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      setCustom({
-                        worldView: p.worldView,
-                        personality: p.personality,
-                        tone: p.tone,
-                        storyPoint: p.storyPoint,
-                        conversationPattern: p.conversationPattern,
-                      });
-                      if (p.greeting?.trim()) {
-                        setMessages((prev) => {
-                          const isOnlyDefaultGreeting =
-                            prev.length === 1 &&
-                            prev[0].role === 'bot' &&
-                            prev[0].text === GREETING;
-                          if (isOnlyDefaultGreeting) {
-                            return [{ role: 'bot', text: p.greeting!.trim() }];
-                          }
-                          return [...prev, { role: 'bot', text: p.greeting!.trim() }];
-                        });
-                      }
-                    }}
-                    style={{
-                      padding: '6px 10px',
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      background: 'var(--bg-section)',
-                      color: 'var(--t2)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 0,
-                      cursor: 'pointer',
-                    }}
-                    title={`${p.work} · ${p.name}`}
-                  >
-                    {p.name}
-                    <span style={{ color: 'var(--t4)', marginLeft: '4px', fontSize: '10px' }}>({p.work})</span>
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCustom({
-                      worldView: '',
-                      personality: '',
-                      tone: '',
-                      storyPoint: '',
-                      conversationPattern: '',
-                    })
-                  }
-                  style={{
-                    padding: '6px 10px',
-                    fontSize: '11px',
-                    color: 'var(--t4)',
-                    border: '1px dashed var(--border)',
-                    borderRadius: 0,
-                    background: 'transparent',
-                    cursor: 'pointer',
-                  }}
-                >
-                  지우기
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setCustom({
+                    worldView: '',
+                    personality: '',
+                    tone: '',
+                    storyPoint: '',
+                    conversationPattern: '',
+                  })
+                }
+                style={{
+                  padding: '6px 10px',
+                  fontSize: '11px',
+                  color: 'var(--t4)',
+                  border: '1px dashed var(--border)',
+                  borderRadius: 0,
+                  background: 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                프리셋 내용 지우기
+              </button>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--t3)', marginBottom: '4px' }}>
@@ -848,6 +872,7 @@ export default function WebtoonChatbotDemoPage() {
             style={{
               display: 'flex',
               justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
+              marginTop: m.role === 'bot' && m.continuation ? '-8px' : 0,
             }}
           >
             {m.role === 'bot' && m.candidates && m.candidates.length > 0 ? (
@@ -949,27 +974,9 @@ export default function WebtoonChatbotDemoPage() {
                   lineHeight: 1.5,
                 }}
               >
-                {m.role === 'bot' && (
+                {m.role === 'bot' && !m.continuation && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '11px', color: 'var(--accent)' }}>{BOT_NAME}</span>
-                    {m.source && (
-                      <span
-                        style={{
-                          fontSize: '10px',
-                          fontWeight: 600,
-                          padding: '2px 6px',
-                          borderRadius: 0,
-                          background: m.source === 'api' ? 'var(--accent-dim)' : 'var(--bg)',
-                          color: m.source === 'api' ? 'var(--accent)' : 'var(--t4)',
-                          border: `1px solid ${m.source === 'api' ? 'var(--accent)' : 'var(--border)'}`,
-                          fontFamily: 'system-ui, -apple-system, sans-serif',
-                          letterSpacing: '0.02em',
-                        }}
-                        aria-label={m.source === 'api' ? 'API' : '목업'}
-                      >
-                        {m.source === 'api' ? '\u0041\u0050\u0049' : '목업'}
-                      </span>
-                    )}
                   </div>
                 )}
                 {m.text}
@@ -992,7 +999,7 @@ export default function WebtoonChatbotDemoPage() {
               {tuningMode ? (
                 <span className="mono" style={{ fontSize: '12px' }}>{tuningCount}개 응답 생성 중...</span>
               ) : (
-                <span style={{ display: 'inline-flex', gap: '4px' }}>
+                <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
                   <span style={{ width: '6px', height: '6px', background: 'var(--t3)', animation: 'pulse 1s infinite' }} />
                   <span style={{ width: '6px', height: '6px', background: 'var(--t3)', animation: 'pulse 1s infinite 0.2s' }} />
                   <span style={{ width: '6px', height: '6px', background: 'var(--t3)', animation: 'pulse 1s infinite 0.4s' }} />
@@ -1048,28 +1055,6 @@ export default function WebtoonChatbotDemoPage() {
             전송
           </button>
         </div>
-        {apiError && (
-          <div
-            style={{
-              marginTop: '10px',
-              padding: '10px 12px',
-              fontSize: '12px',
-              color: 'var(--t1)',
-              background: 'var(--accent-dim)',
-              border: '1px solid var(--accent)',
-              borderRadius: 0,
-            }}
-          >
-            <strong style={{ color: 'var(--accent)' }}>API 사용 불가</strong>
-            <p style={{ margin: '4px 0 0', color: 'var(--t2)' }}>{apiError}</p>
-            <p style={{ margin: '6px 0 0', fontSize: '11px', color: 'var(--t4)' }}>
-              <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>설정 페이지</a>에서
-              OpenAI 또는 Upstage API 키를 저장하면 어디서든 채팅을 사용할 수 있습니다.
-              로컬은 .env.local에, <strong>배포(Vercel)는 환경 변수에 OPENAI_API_KEY 또는 UPSTAGE_API_KEY와
-              SUPABASE_SERVICE_ROLE_KEY</strong>를 설정하세요.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

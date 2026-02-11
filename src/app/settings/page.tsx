@@ -30,7 +30,10 @@ export default function SettingsPage() {
     try {
       const res = await fetch('/api/settings/api-keys', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-secret': adminSecret.trim(),
+        },
         body: JSON.stringify({
           adminSecret: adminSecret.trim(),
           openaiApiKey: openaiApiKey.trim() || undefined,

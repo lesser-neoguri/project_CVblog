@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getClientIp, isRateLimited } from '@/lib/server-security';
 
 /**
  * HyperCLOVA X SEED (HyperCLOVAX-SEED-Text-Instruct-1.5B) 데모용 Chat API
@@ -26,6 +27,15 @@ type ChatMessage = {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const limited = isRateLimited('hyperclovax-chat', ip, 40, 60_000);
+    if (limited.limited) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } },
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const messages: ChatMessage[] = Array.isArray(body.messages)
       ? body.messages.filter((m: unknown): m is ChatMessage => {
@@ -64,7 +74,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const modelRes = await fetch(LOCAL_MODEL_URL, {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(LOCAL_MODEL_URL);
+    } catch {
+      return NextResponse.json(
+        { error: 'LOCAL_HYPERCLOVA_URL is invalid.' },
+        { status: 500 },
+      );
+    }
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      return NextResponse.json(
+        { error: 'LOCAL_HYPERCLOVA_URL must use http or https.' },
+        { status: 500 },
+      );
+    }
+
+    const modelRes = await fetch(parsedUrl.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

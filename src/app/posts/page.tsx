@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getPosts } from '@/lib/posts';
-import { Post } from '@/lib/supabase';
+import { Post, getCurrentUserRole } from '@/lib/supabase';
 import Modal from '@/components/Modal';
 import { useModal } from '@/hooks/useModal';
 
@@ -14,8 +14,30 @@ export default function PostsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const [checkingViewAuth, setCheckingViewAuth] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => { loadPosts(); }, [showAll]);
+
+  // 열람 권한(관리자 여부) 체크
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const role = await getCurrentUserRole();
+        if (!active) return;
+        setIsAdmin(role === 'admin');
+      } catch {
+        if (!active) return;
+        setIsAdmin(false);
+      } finally {
+        if (active) setCheckingViewAuth(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const loadPosts = async () => {
     setLoading(true); setError('');
@@ -44,10 +66,12 @@ export default function PostsPage() {
     });
   };
 
+  const blurred = !checkingViewAuth && !isAdmin;
+
   return (
     <main>
       {/* Header */}
-      <section style={{ padding: '80px 32px 60px', borderBottom: '1px solid var(--border)' }}>
+      <section style={{ padding: blurred ? '30px 32px 40px' : '80px 32px 60px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 'var(--content-w)', margin: '0 auto' }}>
           <p className="mono accent" style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '12px' }}>BLOG</p>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '16px', flexWrap: 'wrap' }}>
@@ -66,19 +90,59 @@ export default function PostsPage() {
 
       {/* List */}
       <section style={{ padding: '0 32px 120px' }}>
-        <div style={{ maxWidth: 'var(--content-w)', margin: '0 auto' }}>
-          {loading ? (
+        <div style={{ maxWidth: 'var(--content-w)', margin: '0 auto', position: 'relative' }}>
+          {blurred && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'center',
+                pointerEvents: 'none',
+                paddingTop: '60px',
+                zIndex: 1,
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: 520,
+                  width: '100%',
+                  padding: '14px 18px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-section)',
+                  fontSize: '13px',
+                  color: 'var(--t2)',
+                  textAlign: 'center',
+                }}
+              >
+                <p style={{ marginBottom: '4px' }}>현재 이 블로그 글 목록은 비공개 상태입니다.</p>
+                <p style={{ fontSize: '12px', color: 'var(--t3)' }}>
+                  관리자만 실제 내용을 확인할 수 있으며, 일반 방문자에게는 흐릿하게 표시됩니다.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div
+            style={{
+              filter: blurred ? 'blur(5px)' : 'none',
+              pointerEvents: blurred ? 'none' : 'auto',
+              userSelect: blurred ? 'none' : 'auto',
+            }}
+          >
+            {loading ? (
             Array.from({length:5}).map((_,i) => (
               <div key={i} style={{ padding: '32px 0', borderBottom: '1px solid var(--border)', height: '100px', animation: 'pulse 2s infinite', animationDelay: `${i*.1}s` }} />
             ))
-          ) : error ? (
+            ) : error ? (
             <div style={{ padding: '24px 0', color: '#ef4444', fontSize: '14px' }}>{error}</div>
-          ) : posts.length === 0 ? (
+            ) : posts.length === 0 ? (
             <div style={{ padding: '120px 0', textAlign: 'center' }}>
               <p style={{ color: 'var(--t3)', fontSize: '15px', marginBottom: '24px' }}>아직 글이 없습니다</p>
               <button className="btn-primary" onClick={() => router.push('/write')}>작성하기</button>
             </div>
-          ) : posts.map((post, i) => (
+            ) : posts.map((post, i) => (
             <article
               key={post.id}
               onClick={() => router.push(`/posts/${post.id}`)}
@@ -108,7 +172,8 @@ export default function PostsPage() {
               </div>
               <p style={{ fontSize: '14px', color: 'var(--t3)', lineHeight: 1.6, marginTop: '6px' }}>{excerpt(post.content)}</p>
             </article>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 

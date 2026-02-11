@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getPaperReviews } from '@/lib/papers';
 import { getKnowledgeNodes } from '@/lib/knowledge';
-import { PaperReview, KnowledgeNode } from '@/lib/supabase';
+import { PaperReview, KnowledgeNode, getCurrentUserRole } from '@/lib/supabase';
 import KnowledgeGraph from '@/components/KnowledgeGraph';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
@@ -424,6 +424,8 @@ export default function PapersPage() {
   const [reviews, setReviews] = useState<PaperReview[]>([]);
   const [knowledgeNodes, setKnowledgeNodes] = useState<KnowledgeNode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [checkingViewAuth, setCheckingViewAuth] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
@@ -435,6 +437,28 @@ export default function PapersPage() {
   const touchStartY = useRef<number>(0);
   const currentPullY = useRef<number>(0);
   const isMobile = useMediaQuery('(max-width: 768px)');
+
+  // 뷰 권한: 관리자만 실제 내용 확인 가능, 일반 방문자는 블러 + 안내 배너
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const role = await getCurrentUserRole();
+        if (!active) return;
+        setIsAdmin(role === 'admin');
+      } catch {
+        if (!active) return;
+        setIsAdmin(false);
+      } finally {
+        if (active) setCheckingViewAuth(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const isBlurred = !checkingViewAuth && !isAdmin;
 
   useEffect(() => { loadReviews(); }, [showAll]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -684,6 +708,7 @@ export default function PapersPage() {
         flexDirection: 'column',
         overflow: 'hidden',
         boxSizing: 'border-box',
+        position: 'relative',
       }}
     >
       {/* Keyframes + viewport fitting */}
@@ -694,181 +719,224 @@ export default function PapersPage() {
         }
       `}</style>
 
-      {/* ════════ TOOLBAR ════════ */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        flexWrap: isMobile ? 'wrap' : 'nowrap',
-        gap: isMobile ? '6px' : '8px',
-        padding: isMobile ? '10px 16px' : '10px 24px',
-        borderBottom: '1px solid var(--border)',
-        flexShrink: 0,
-      }}>
-        {/* Title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginRight: '16px' }}>
-          <h1 style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.02em' }}>
-            논문 리뷰
-          </h1>
-          <span style={{ fontSize: '11px', fontFamily: 'var(--mono)', color: 'var(--t4)' }}>
-            {filtered.length}편
-          </span>
+      {/* 비공개 안내 배너 (관리자 외에만 표시) */}
+      {isBlurred && !checkingViewAuth && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '10px 16px',
+            borderRadius: 4,
+            background: 'rgba(15,23,42,0.92)',
+            color: 'rgba(248,250,252,0.96)',
+            fontSize: '12px',
+            lineHeight: 1.6,
+            boxShadow: '0 12px 30px rgba(15,23,42,0.55)',
+            border: '1px solid rgba(148,163,184,0.55)',
+            zIndex: 20,
+            maxWidth: 420,
+            textAlign: 'center',
+            pointerEvents: 'auto',
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            블로그 정리 중에 있습니다.
+          </div>
+          <div>현재는 요약본으로 대체되어 표시됩니다.</div>
         </div>
+      )}
 
-        {/* Separator */}
-        <div style={{ width: '1px', height: '20px', background: 'var(--border)', flexShrink: 0 }} />
+      {/* 실제 콘텐츠 영역은 필요 시 블러 처리 */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          minHeight: 0,
+          minWidth: 0,
+          filter: isBlurred ? 'blur(5px)' : 'none',
+          pointerEvents: isBlurred ? 'none' : 'auto',
+          userSelect: isBlurred ? 'none' : 'auto',
+        }}
+      >
+        {/* ════════ TOOLBAR ════════ */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: isMobile ? 'wrap' : 'nowrap',
+          gap: isMobile ? '6px' : '8px',
+          padding: isMobile ? '10px 16px' : '10px 24px',
+          borderBottom: '1px solid var(--border)',
+          flexShrink: 0,
+        }}>
+          {/* Title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginRight: '16px' }}>
+            <h1 style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.02em' }}>
+              논문 리뷰
+            </h1>
+            <span style={{ fontSize: '11px', fontFamily: 'var(--mono)', color: 'var(--t4)' }}>
+              {filtered.length}편
+            </span>
+          </div>
 
-        {/* View mode toggle */}
-        <div style={{ display: 'flex', gap: '0px' }}>
-          {viewModes.map(({ mode, label, icon }) => (
+          {/* Separator */}
+          <div style={{ width: '1px', height: '20px', background: 'var(--border)', flexShrink: 0 }} />
+
+          {/* View mode toggle */}
+          <div style={{ display: 'flex', gap: '0px' }}>
+            {viewModes.map(({ mode, label, icon }) => (
+              <button
+                key={mode}
+                onClick={() => { setViewMode(mode); setPreviewData(null); setHighlightNodeId(null); }}
+                style={{
+                  ...toolbarBtnStyle(viewMode === mode),
+                  borderRight: mode !== 'graph' ? 'none' : undefined,
+                }}
+                title={label}
+              >
+                {icon}
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Separator */}
+          <div style={{ width: '1px', height: '20px', background: 'var(--border)', flexShrink: 0 }} />
+
+          {/* Tag filter */}
+          <div style={{ position: 'relative' }}>
             <button
-              key={mode}
-              onClick={() => { setViewMode(mode); setPreviewData(null); setHighlightNodeId(null); }}
+              onClick={() => setTagDropdownOpen(!tagDropdownOpen)}
               style={{
-                ...toolbarBtnStyle(viewMode === mode),
-                borderRight: mode !== 'graph' ? 'none' : undefined,
+                ...toolbarBtnStyle(!!filterTag),
+                gap: '4px',
               }}
-              title={label}
             >
-              {icon}
-              <span>{label}</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              </svg>
+              {filterTag || '태그'}
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
             </button>
-          ))}
-        </div>
 
-        {/* Separator */}
-        <div style={{ width: '1px', height: '20px', background: 'var(--border)', flexShrink: 0 }} />
+            {tagDropdownOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setTagDropdownOpen(false)} />
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: '4px',
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  minWidth: '160px', maxHeight: '240px', overflow: 'auto',
+                  zIndex: 100,
+                }}>
+                  <button
+                    onClick={() => { setFilterTag(null); setTagDropdownOpen(false); }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '8px 14px', fontSize: '12px',
+                      background: !filterTag ? 'var(--bg-hover)' : 'transparent',
+                      color: !filterTag ? 'var(--t1)' : 'var(--t3)',
+                      border: 'none', cursor: 'pointer',
+                      fontFamily: 'var(--mono)',
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                  >
+                    전체
+                  </button>
+                  {allTags.map(tag => (
+                    <button
+                      key={tag}
+                      onClick={() => { setFilterTag(tag); setTagDropdownOpen(false); }}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '8px 14px', fontSize: '12px',
+                        background: filterTag === tag ? 'var(--bg-hover)' : 'transparent',
+                        color: filterTag === tag ? 'var(--accent)' : 'var(--t2)',
+                        border: 'none', cursor: 'pointer',
+                        borderBottom: '1px solid var(--border)',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
+                      onMouseLeave={e => { if (filterTag !== tag) e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
-        {/* Tag filter */}
-        <div style={{ position: 'relative' }}>
+          {/* Search */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ position: 'absolute', left: '10px', color: 'var(--t4)', pointerEvents: 'none' }}>
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="검색"
+              style={{
+                width: isMobile ? '100px' : '140px',
+                padding: '6px 10px 6px 28px',
+                fontSize: '11px',
+                fontFamily: 'var(--mono)',
+                background: 'var(--bg-alt)',
+                border: '1px solid var(--border)',
+                color: 'var(--t1)',
+                outline: 'none',
+                transition: 'border-color .15s',
+                height: '32px',
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--t3)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--t4)', cursor: 'pointer', padding: '2px', display: 'flex' }}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            )}
+          </div>
+
+          {/* Show all toggle */}
           <button
-            onClick={() => setTagDropdownOpen(!tagDropdownOpen)}
+            onClick={() => setShowAll(!showAll)}
             style={{
-              ...toolbarBtnStyle(!!filterTag),
+              ...toolbarBtnStyle(showAll),
               gap: '4px',
             }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+              {showAll
+                ? <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>
+                : <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></>
+              }
             </svg>
-            {filterTag || '태그'}
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 9l6 6 6-6" />
-            </svg>
+            {showAll ? '전체' : '발행됨'}
           </button>
 
-          {tagDropdownOpen && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setTagDropdownOpen(false)} />
-              <div style={{
-                position: 'absolute', top: '100%', right: 0, marginTop: '4px',
-                background: 'var(--bg)', border: '1px solid var(--border)',
-                minWidth: '160px', maxHeight: '240px', overflow: 'auto',
-                zIndex: 100,
-              }}>
-                <button
-                  onClick={() => { setFilterTag(null); setTagDropdownOpen(false); }}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '8px 14px', fontSize: '12px',
-                    background: !filterTag ? 'var(--bg-hover)' : 'transparent',
-                    color: !filterTag ? 'var(--t1)' : 'var(--t3)',
-                    border: 'none', cursor: 'pointer',
-                    fontFamily: 'var(--mono)',
-                    borderBottom: '1px solid var(--border)',
-                  }}
-                >
-                  전체
-                </button>
-                {allTags.map(tag => (
-                  <button
-                    key={tag}
-                    onClick={() => { setFilterTag(tag); setTagDropdownOpen(false); }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '8px 14px', fontSize: '12px',
-                      background: filterTag === tag ? 'var(--bg-hover)' : 'transparent',
-                      color: filterTag === tag ? 'var(--accent)' : 'var(--t2)',
-                      border: 'none', cursor: 'pointer',
-                      borderBottom: '1px solid var(--border)',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                    onMouseLeave={e => { if (filterTag !== tag) e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
+
+          {/* Write button */}
+          <button
+            className="btn-primary"
+            onClick={() => router.push('/papers/write')}
+            style={{ padding: '6px 16px', fontSize: '12px', height: '32px' }}
+          >
+            + 작성
+          </button>
         </div>
 
-        {/* Search */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ position: 'absolute', left: '10px', color: 'var(--t4)', pointerEvents: 'none' }}>
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="검색"
-            style={{
-              width: isMobile ? '100px' : '140px',
-              padding: '6px 10px 6px 28px',
-              fontSize: '11px',
-              fontFamily: 'var(--mono)',
-              background: 'var(--bg-alt)',
-              border: '1px solid var(--border)',
-              color: 'var(--t1)',
-              outline: 'none',
-              transition: 'border-color .15s',
-              height: '32px',
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--t3)'; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)'; }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--t4)', cursor: 'pointer', padding: '2px', display: 'flex' }}
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          )}
-        </div>
-
-        {/* Show all toggle */}
-        <button
-          onClick={() => setShowAll(!showAll)}
-          style={{
-            ...toolbarBtnStyle(showAll),
-            gap: '4px',
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            {showAll
-              ? <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></>
-              : <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></>
-            }
-          </svg>
-          {showAll ? '전체' : '발행됨'}
-        </button>
-
-        {/* Spacer */}
-        <div style={{ flex: 1 }} />
-
-        {/* Write button */}
-        <button
-          className="btn-primary"
-          onClick={() => router.push('/papers/write')}
-          style={{ padding: '6px 16px', fontSize: '12px', height: '32px' }}
-        >
-          + 작성
-        </button>
-      </div>
-
-      {/* ════════ CONTENT AREA ════════ */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, minWidth: 0 }}>
+        {/* ════════ CONTENT AREA ════════ */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0, minWidth: 0 }}>
         {/* ─── Paper List Panel ─── */}
         {showList && (
           <div style={{
@@ -993,22 +1061,23 @@ export default function PapersPage() {
           </div>
         )}
 
-        {/* ─── Preview Panel (통일된 UI) ─── */}
-        {previewData && (
-          <div style={isMobile ? {
-            position: 'fixed', top: 'var(--nav-h)', left: 0, right: 0, bottom: 0,
-            zIndex: 1000, overflow: 'auto', background: 'var(--bg)',
-            paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
-            paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)',
-          } : undefined}>
-            <PreviewPanel
-              data={previewData}
-              onClose={closePreview}
-              onNavigate={(path) => router.push(path)}
-              fullScreen={isMobile}
-            />
-          </div>
-        )}
+          {/* ─── Preview Panel (통일된 UI) ─── */}
+          {previewData && (
+            <div style={isMobile ? {
+              position: 'fixed', top: 'var(--nav-h)', left: 0, right: 0, bottom: 0,
+              zIndex: 1000, overflow: 'auto', background: 'var(--bg)',
+              paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)',
+              paddingLeft: 'env(safe-area-inset-left)', paddingRight: 'env(safe-area-inset-right)',
+            } : undefined}>
+              <PreviewPanel
+                data={previewData}
+                onClose={closePreview}
+                onNavigate={(path) => router.push(path)}
+                fullScreen={isMobile}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import MarkdownEditor from '@/components/MarkdownEditor';
 import { createProject } from '@/lib/portfolio';
 import Modal from '@/components/Modal';
 import { useModal } from '@/hooks/useModal';
+import { getCurrentUser } from '@/lib/supabase';
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 14px', fontSize: '14px', fontFamily: 'var(--font)',
@@ -39,6 +40,23 @@ export default function WriteProjectPage() {
   const [published, setPublished] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  // 페이지 진입 시 로그인 여부 확인 후, 비로그인 상태면 로그인 페이지로 이동
+  useEffect(() => {
+    (async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!user) {
+          router.push('/auth?redirect=/projects/write');
+          return;
+        }
+        setCheckingAuth(false);
+      } catch {
+        router.push('/auth?redirect=/projects/write');
+      }
+    })();
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setError('');
@@ -67,15 +85,34 @@ export default function WriteProjectPage() {
     } finally { setSaving(false); }
   };
 
+  if (checkingAuth) {
+    return (
+      <main>
+        <section style={{ padding: '80px 32px', textAlign: 'center' }}>
+          <p style={{ fontSize: '14px', color: 'var(--t3)' }}>로그인 상태를 확인하는 중입니다...</p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main>
-      <section style={{ padding: '80px 32px 120px' }}>
+      {/* Hero: Projects 페이지와 톤 맞추기 */}
+      <section style={{ padding: '80px 32px 40px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 'var(--content-w)', margin: '0 auto' }}>
-          <p className="mono accent" style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '12px' }}>NEW PROJECT</p>
-          <h1 style={{ fontSize: 'clamp(24px, 3.5vw, 36px)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.2, marginBottom: '48px' }}>
-            프로젝트 추가
+          <p className="mono accent" style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '12px' }}>PROJECTS</p>
+          <h1 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.2, marginBottom: '8px' }}>
+            새 프로젝트 추가
           </h1>
+          <p style={{ fontSize: '14px', color: 'var(--t3)' }}>
+            포트폴리오에 보여줄 프로젝트 정보를 입력하고, 필요하다면 바로 발행할 수 있습니다.
+          </p>
+        </div>
+      </section>
 
+      {/* Form section */}
+      <section style={{ padding: '40px 32px 120px' }}>
+        <div style={{ maxWidth: 'var(--content-w)', margin: '0 auto' }}>
           <form onSubmit={handleSubmit}>
             {/* Title */}
             <div style={{ marginBottom: '24px' }}>

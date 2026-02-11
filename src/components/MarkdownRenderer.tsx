@@ -11,10 +11,23 @@ interface MarkdownRendererProps {
   className?: string;
 }
 
+function sanitizeDangerousHtml(input: string): string {
+  if (!input) return input;
+  return input
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/\son\w+=(["']).*?\1/gi, '')
+    .replace(/\son\w+=([^\s>]+)/gi, '')
+    .replace(/\s(href|src)=(["'])\s*javascript:[\s\S]*?\2/gi, ' $1="#"');
+}
+
 export default function MarkdownRenderer({
   content,
   className = '',
 }: MarkdownRendererProps) {
+  const safeContent = sanitizeDangerousHtml(content);
+
   return (
     <div className={`markdown-content ${className}`}>
       <ReactMarkdown
@@ -50,7 +63,7 @@ export default function MarkdownRenderer({
           ),
         }}
       >
-        {content}
+        {safeContent}
       </ReactMarkdown>
     </div>
   );

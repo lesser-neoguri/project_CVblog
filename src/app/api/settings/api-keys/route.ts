@@ -1,32 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getApiKeysFromDb, setApiKeysInDb, type AppApiKeys } from '@/lib/api-keys';
+import { getClientIp, isRateLimited, safeSecretEquals } from '@/lib/server-security';
 
-/** DB에 저장된 API 키 존재 여부만 반환 (값은 노출하지 않음) */
+/** DB-stored API key presence only (values are never returned). */
 export async function GET() {
+  const limited = isRateLimited('settings-api-keys-get', 'global', 60, 60_000);
+  if (limited.limited) {
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } }
+    );
+  }
+
   const keys = await getApiKeysFromDb();
-  const configured =
-    !!(keys?.OPENAI_API_KEY?.trim() || keys?.UPSTAGE_API_KEY?.trim());
+  const configured = !!(keys?.OPENAI_API_KEY?.trim() || keys?.UPSTAGE_API_KEY?.trim());
   return NextResponse.json({ configured });
 }
 
 /**
- * API 키 저장. ADMIN_SECRET 헤더와 일치해야 함.
- * body: { adminSecret: string, openaiApiKey?: string, upstageApiKey?: string, upstageBaseUrl?: string, upstageChatModel?: string }
+ * Save API keys to DB.
+ * Accepts `x-admin-secret` header (preferred) and `adminSecret` in body (backward compatible).
+ * body: { adminSecret?: string, openaiApiKey?: string, upstageApiKey?: string, upstageBaseUrl?: string, upstageChatModel?: string }
  */
 export async function PUT(req: NextRequest) {
   try {
-    const adminSecret = process.env.ADMIN_SECRET;
-    if (!adminSecret?.trim()) {
+    const ip = getClientIp(req);
+    const limited = isRateLimited('settings-api-keys-put', ip, 10, 60_000);
+    if (limited.limited) {
       return NextResponse.json(
-        { error: 'ADMIN_SECRET이 서버에 설정되어 있지 않습니다. Vercel/.env.local에 ADMIN_SECRET을 추가한 뒤 다시 시도하세요.' },
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } }
+      );
+    }
+
+    const adminSecret = process.env.ADMIN_SECRET?.trim();
+    if (!adminSecret) {
+      return NextResponse.json(
+        { error: 'ADMIN_SECRET is not configured on the server.' },
         { status: 503 }
       );
     }
 
     const body = await req.json().catch(() => ({}));
-    const sent = typeof body.adminSecret === 'string' ? body.adminSecret.trim() : '';
-    if (sent !== adminSecret) {
-      return NextResponse.json({ error: '인증에 실패했습니다.' }, { status: 401 });
+    const sentFromHeader = req.headers.get('x-admin-secret')?.trim();
+    const sentFromBody = typeof body.adminSecret === 'string' ? body.adminSecret.trim() : '';
+    const sent = sentFromHeader || sentFromBody;
+
+    if (!sent || !safeSecretEquals(sent, adminSecret)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const updates: Partial<AppApiKeys> = {};
@@ -38,15 +59,16 @@ export async function PUT(req: NextRequest) {
     const result = await setApiKeysInDb(updates);
     if (!result.ok) {
       return NextResponse.json(
-        { error: result.error || '저장 실패' },
+        { error: result.error || 'Failed to save API keys' },
         { status: 500 }
       );
     }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('API keys save error:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : '알 수 없는 오류' },
+      { error: err instanceof Error ? err.message : 'Unknown error' },
       { status: 500 }
     );
   }

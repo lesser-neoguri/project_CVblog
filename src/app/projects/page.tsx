@@ -94,9 +94,12 @@ export default function ProjectsPage() {
 
   const loadProjects = async () => {
     setLoading(true); setError('');
-    try { setProjects(await getProjects(!showAll)); }
-    catch { setError('프로젝트를 불러오는데 실패했습니다.'); }
-    finally { setLoading(false); }
+    try {
+      // 목록은 항상 발행 여부와 상관없이 전체 프로젝트를 보여준다.
+      setProjects(await getProjects(false));
+    } catch {
+      setError('프로젝트를 불러오는데 실패했습니다.');
+    } finally { setLoading(false); }
   };
 
   const allTags = Array.from(new Set(projects.flatMap(p => p.tags || []))).sort();
@@ -287,7 +290,7 @@ function ProjectCard({ project, onClick, layout = 'list' }: { project: Portfolio
       onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
       onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg)'; }}
     >
-      {/* Top row: status + dates */}
+      {/* Top row: status + dates + 비공개 태그 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
         <span style={{
           padding: '2px 8px', fontSize: '10px', fontFamily: 'var(--mono)', fontWeight: 600,
@@ -295,13 +298,23 @@ function ProjectCard({ project, onClick, layout = 'list' }: { project: Portfolio
         }}>
           {status.text}
         </span>
+        {!project.published && (
+          <span style={{
+            padding: '2px 8px',
+            fontSize: '10px',
+            fontFamily: 'var(--mono)',
+            fontWeight: 600,
+            background: 'rgba(234,179,8,0.12)',
+            color: '#eab308',
+            letterSpacing: '0.04em',
+          }}>
+            비공개
+          </span>
+        )}
         {project.start_date && (
           <span className="mono" style={{ fontSize: '11px', color: 'var(--t4)' }}>
             {project.start_date}{project.end_date ? ` → ${project.end_date}` : ' → 현재'}
           </span>
-        )}
-        {!project.published && (
-          <span style={{ fontSize: '10px', fontWeight: 600, color: '#eab308' }}>비공개</span>
         )}
         {project.featured && (
           <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--accent)' }}>★</span>

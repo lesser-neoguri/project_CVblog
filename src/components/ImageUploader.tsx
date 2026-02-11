@@ -5,7 +5,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { uploadImage, validateImageFile } from '@/lib/storage';
 
 interface ImageUploaderProps {
-  onImageUpload: (imageUrl: string, markdownText: string) => void;
+  onImageUpload: (imageUrl: string, markdownText: string) => void | Promise<void>;
   onError?: (error: string) => void;
 }
 
@@ -70,8 +70,8 @@ export default function ImageUploader({ onImageUpload, onError }: ImageUploaderP
         const altText = file.name.split('.')[0];
         const markdownText = `![${altText}](${imageUrl})`;
 
-        // 콜백 호출
-        onImageUpload(imageUrl, markdownText);
+        // 콜백 호출 (비동기 콜백이면 업로드 루프가 기다리도록 처리)
+        await Promise.resolve(onImageUpload(imageUrl, markdownText));
       } catch (error: unknown) {
         console.error('업로드 오류:', error);
         onError?.(error instanceof Error ? error.message : '이미지 업로드에 실패했습니다.');

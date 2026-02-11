@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 import { getProjectById, deleteProject, updateProject } from '@/lib/portfolio';
-import { PortfolioProject } from '@/lib/supabase';
+import { PortfolioProject, getCurrentUserRole, getCurrentUser } from '@/lib/supabase';
 import { WEBTOON_DEMO_IMPL_SECTIONS } from '@/lib/webtoon-demo-impl-sections';
 import Modal from '@/components/Modal';
 import { useModal } from '@/hooks/useModal';
@@ -26,6 +26,8 @@ export default function ProjectDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  const [checkingViewAuth, setCheckingViewAuth] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const toggleSection = (id: string) =>
     setOpenSections((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -33,6 +35,26 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (params.id) load(params.id as string);
   }, [params.id]);
+
+  // 열람 권한(관리자 여부) 체크
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const role = await getCurrentUserRole();
+        if (!active) return;
+        setIsAdmin(role === 'admin');
+      } catch {
+        if (!active) return;
+        setIsAdmin(false);
+      } finally {
+        if (active) setCheckingViewAuth(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!project) return;
@@ -79,6 +101,24 @@ export default function ProjectDetailPage() {
     );
   }
 
+  // 관리자만 프로젝트 상세 열람 가능 (목록은 /projects에서 누구나 볼 수 있음)
+  if (!checkingViewAuth && !isAdmin) {
+    return (
+      <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 32px' }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: '14px', color: 'var(--t3)', marginBottom: '12px' }}>이 프로젝트를 열람할 권한이 없습니다.</p>
+          <p style={{ fontSize: '13px', color: 'var(--t4)', marginBottom: '20px' }}>관리자 계정으로 로그인하면 상세 내용을 볼 수 있습니다.</p>
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            <button className="btn-primary" onClick={() => router.push('/auth?redirect=' + encodeURIComponent(`/projects/${params.id}`))}>
+              로그인하기
+            </button>
+            <button className="btn-ghost" onClick={() => router.push('/projects')}>목록으로</button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (error || !project) {
     return (
       <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 32px' }}>
@@ -92,6 +132,10 @@ export default function ProjectDetailPage() {
 
   const status = STATUS_LABEL[project.status] || STATUS_LABEL.in_progress;
   const hasDemo = Boolean(project.demo_url?.trim());
+  const demoUrlWithProject =
+    project.demo_url?.includes('webtoon-chatbot')
+      ? `${project.demo_url}${project.demo_url.includes('?') ? '&' : '?'}project_id=${project.id}`
+      : project.demo_url;
 
   const contentArea = (
     <>
@@ -120,19 +164,26 @@ export default function ProjectDetailPage() {
         </div>
 
         <header style={{ animation: 'fadeUp .6s cubic-bezier(0.16,1,0.3,1)' }}>
-          {!project.published && (
-            <span style={{ display: 'inline-block', padding: '2px 8px', fontSize: '11px', fontWeight: 600, background: 'rgba(234,179,8,0.1)', color: '#eab308', marginBottom: '14px' }}>
-              비공개
-            </span>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
             <span style={{
               padding: '3px 12px', fontSize: '12px', fontFamily: 'var(--mono)', fontWeight: 700,
               background: status.bg, color: status.color, letterSpacing: '0.04em',
             }}>
               {status.text}
             </span>
+            {!project.published && (
+              <span style={{
+                padding: '3px 10px',
+                fontSize: '11px',
+                fontFamily: 'var(--mono)',
+                fontWeight: 600,
+                background: 'rgba(234,179,8,0.12)',
+                color: '#eab308',
+                letterSpacing: '0.04em',
+              }}>
+                비공개
+              </span>
+            )}
             {project.start_date && (
               <span className="mono" style={{ fontSize: '12px', color: 'var(--t3)' }}>
                 {project.start_date}{project.end_date ? ` → ${project.end_date}` : ' → 현재'}
@@ -312,7 +363,10 @@ export default function ProjectDetailPage() {
           >
             <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg)', color: 'var(--t1)' }}>
               <span className="mono" style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.06em', color: 'var(--t3)' }}>LIVE DEMO</span>
-              <a href={project.demo_url!} target="_blank" rel="noopener noreferrer"
+              <a
+                href={demoUrlWithProject ?? '#'}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{ fontSize: '12px', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500, transition: 'opacity .15s' }}
                 onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; }}
                 onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
@@ -322,7 +376,7 @@ export default function ProjectDetailPage() {
             </div>
             <div style={{ flex: 1, minHeight: '400px', position: 'relative', background: 'var(--bg)' }}>
               <iframe
-                src={project.demo_url!}
+                src={demoUrlWithProject ?? project.demo_url!}
                 title="프로젝트 데모"
                 style={{
                   position: 'absolute',

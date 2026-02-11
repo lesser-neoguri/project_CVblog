@@ -1,13 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
 import { signIn, signUp } from '@/lib/supabase';
 
 export default function AuthPage() {
   const { isLightTheme } = useTheme();
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -43,7 +44,8 @@ export default function AuthPage() {
       if (mode === 'signin') {
         await signIn(email, password);
         setSuccess('로그인 성공!');
-        setTimeout(() => router.push('/'), 1000);
+        const redirect = searchParams.get('redirect') || '/';
+        setTimeout(() => router.push(redirect), 800);
       } else {
         await signUp(email, password);
         setSuccess('회원가입 성공! 이메일을 확인해주세요.');
@@ -60,58 +62,34 @@ export default function AuthPage() {
   };
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: isLightTheme ? '#FAF8F3' : '#1a1a1a',
-        color: isLightTheme ? '#111' : '#fafafa',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '40px 20px',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: '440px',
-          padding: '40px',
-          borderRadius: '20px',
-          background: isLightTheme
-            ? 'rgba(255, 255, 255, 0.8)'
-            : 'rgba(255, 255, 255, 0.08)',
-          border: isLightTheme
-            ? '1px solid rgba(0, 0, 0, 0.08)'
-            : '1px solid rgba(255, 255, 255, 0.14)',
-          boxShadow: isLightTheme
-            ? '0 12px 30px rgba(0,0,0,0.08)'
-            : '0 12px 30px rgba(0,0,0,0.35)',
-          backdropFilter: 'blur(12px)',
-        }}
-      >
-        <h1
-          style={{
-            fontSize: '32px',
-            fontWeight: 700,
-            marginBottom: '8px',
-            textAlign: 'center',
-          }}
-        >
-          {mode === 'signin' ? '로그인' : '회원가입'}
-        </h1>
-        <p
-          style={{
-            fontSize: '14px',
-            opacity: 0.7,
-            textAlign: 'center',
-            marginBottom: '32px',
-          }}
-        >
-          {mode === 'signin'
-            ? 'CV Blog에 오신 것을 환영합니다!'
-            : '새 계정을 만들어보세요!'}
-        </p>
+    <main>
+      {/* Hero 영역: 다른 페이지와 톤 맞추기 */}
+      <section style={{ padding: '80px 32px 40px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ maxWidth: 'var(--content-w)', margin: '0 auto' }}>
+          <p className="mono accent" style={{ fontSize: '12px', fontWeight: 500, letterSpacing: '0.08em', marginBottom: '12px' }}>
+            AUTH
+          </p>
+          <h1 style={{ fontSize: 'clamp(26px, 4vw, 40px)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.2, marginBottom: '8px' }}>
+            {mode === 'signin' ? '로그인' : '회원가입'}
+          </h1>
+          <p style={{ fontSize: '14px', color: 'var(--t3)' }}>
+            {mode === 'signin'
+              ? '글쓰기 · 프로젝트 추가 등 주요 기능을 사용하려면 로그인해주세요.'
+              : '새 계정을 만들어 CV Blog의 모든 기능을 사용해보세요.'}
+          </p>
+        </div>
+      </section>
 
+      {/* 폼 카드 */}
+      <section style={{ padding: '40px 32px 120px' }}>
+      <div style={{ maxWidth: '480px', margin: '0 auto' }}>
+          <div
+            style={{
+            padding: '24px 0',
+            borderTop: '1px solid var(--border)',
+            borderBottom: '1px solid var(--border)',
+            }}
+          >
         <form onSubmit={handleSubmit}>
           {/* 이메일 */}
           <div style={{ marginBottom: '20px' }}>
@@ -134,16 +112,12 @@ export default function AuthPage() {
               placeholder="your@email.com"
               style={{
                 width: '100%',
-                padding: '12px 16px',
-                fontSize: '16px',
-                border: isLightTheme
-                  ? '1px solid rgba(0, 0, 0, 0.1)'
-                  : '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
-                background: isLightTheme
-                  ? 'rgba(255, 255, 255, 0.9)'
-                  : 'rgba(0, 0, 0, 0.2)',
-                color: isLightTheme ? '#111' : '#fafafa',
+                padding: '10px 12px',
+                fontSize: '14px',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                background: 'var(--bg-alt)',
+                color: 'var(--t1)',
                 outline: 'none',
               }}
             />
@@ -170,16 +144,12 @@ export default function AuthPage() {
               placeholder="최소 6자 이상"
               style={{
                 width: '100%',
-                padding: '12px 16px',
-                fontSize: '16px',
-                border: isLightTheme
-                  ? '1px solid rgba(0, 0, 0, 0.1)'
-                  : '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
-                background: isLightTheme
-                  ? 'rgba(255, 255, 255, 0.9)'
-                  : 'rgba(0, 0, 0, 0.2)',
-                color: isLightTheme ? '#111' : '#fafafa',
+                padding: '10px 12px',
+                fontSize: '14px',
+                border: '1px solid var(--border)',
+                borderRadius: '4px',
+                background: 'var(--bg-alt)',
+                color: 'var(--t1)',
                 outline: 'none',
               }}
             />
@@ -207,16 +177,12 @@ export default function AuthPage() {
                 placeholder="비밀번호를 다시 입력하세요"
                 style={{
                   width: '100%',
-                  padding: '12px 16px',
-                  fontSize: '16px',
-                  border: isLightTheme
-                    ? '1px solid rgba(0, 0, 0, 0.1)'
-                    : '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '8px',
-                  background: isLightTheme
-                    ? 'rgba(255, 255, 255, 0.9)'
-                    : 'rgba(0, 0, 0, 0.2)',
-                  color: isLightTheme ? '#111' : '#fafafa',
+                  padding: '10px 12px',
+                  fontSize: '14px',
+                  border: '1px solid var(--border)',
+                  borderRadius: '4px',
+                  background: 'var(--bg-alt)',
+                  color: 'var(--t1)',
                   outline: 'none',
                 }}
               />
@@ -260,18 +226,12 @@ export default function AuthPage() {
           <button
             type="submit"
             disabled={loading}
+            className="btn-primary"
             style={{
               width: '100%',
-              padding: '14px',
-              fontSize: '16px',
-              fontWeight: 600,
-              background: isLightTheme ? '#111' : '#fafafa',
-              color: isLightTheme ? '#fafafa' : '#111',
-              border: 'none',
-              borderRadius: '8px',
+              justifyContent: 'center',
+              opacity: loading ? 0.7 : 1,
               cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.6 : 1,
-              transition: 'opacity 0.2s ease',
             }}
           >
             {loading
@@ -285,12 +245,12 @@ export default function AuthPage() {
         {/* 모드 전환 */}
         <div
           style={{
-            marginTop: '24px',
+            marginTop: '20px',
             textAlign: 'center',
             fontSize: '14px',
           }}
         >
-          <span style={{ opacity: 0.7 }}>
+          <span style={{ color: 'var(--t3)' }}>
             {mode === 'signin'
               ? '계정이 없으신가요?'
               : '이미 계정이 있으신가요?'}
@@ -302,19 +262,15 @@ export default function AuthPage() {
               setError('');
               setSuccess('');
             }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: isLightTheme ? '#111' : '#fafafa',
-              fontWeight: 600,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-            }}
+            className="btn-link"
+            style={{ fontSize: '14px', padding: 0 }}
           >
             {mode === 'signin' ? '회원가입' : '로그인'}
           </button>
         </div>
       </div>
+      </div>
+      </section>
     </main>
   );
 }

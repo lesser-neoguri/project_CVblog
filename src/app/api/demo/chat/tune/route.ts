@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getClientIp, isRateLimited } from '@/lib/server-security';
 
 const TUNING_MAX_EXAMPLES = 5;
 
@@ -15,6 +16,15 @@ export type TuningState = {
  */
 export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const limited = isRateLimited('demo-chat-tune', ip, 60, 60_000);
+    if (limited.limited) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } }
+      );
+    }
+
     const body = await req.json();
     const userMessage =
       typeof body.userMessage === 'string' ? body.userMessage.trim() : '';

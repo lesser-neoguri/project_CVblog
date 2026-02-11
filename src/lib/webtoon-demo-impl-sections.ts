@@ -67,6 +67,19 @@ export const WEBTOON_DEMO_IMPL_SECTIONS: ImplSection[] = [
 - "같은 말 반복 금지" 규칙 추가: 이미 말한 문장(제안·약속·감탄)을 그대로 또는 비슷하게 다시 말하지 말 것. 새로 할 말이 있으면 그걸, 없으면 대화를 이어가는 다른 한 마디로.`,
   },
   {
+    id: 'story-flow-v2',
+    title: '스토리 전개 안정화 v2 (번호 제거 · 로딩 유지)',
+    content: `- **번호형 출력 제거**: 썰 모드에서 \`1.\`, \`2.\`, \`-\`, \`*\` 같은 목록 포맷을 금지하고 자연 문장으로만 순차 전개.
+- **자문자답 억제**: 한 응답 안에서 스스로 질문하고 스스로 답하는 패턴을 금지하고, 한 턴 한 흐름으로 진행.
+- **지연 시간 상향**: 문장 청크 사이 간격을 **3~6초 랜덤**으로 조정해 더 자연스러운 "생각 후 답변" 리듬 적용.
+- **대기 중 로딩 표시 유지**: 청크 간 대기 시간마다 로딩 말풍선(작성중...)이 보이도록 \`isTyping\` 토글 로직 수정.
+- **연속 청크 시각적 그룹화**: 같은 응답의 후속 청크(\`continuation\`)는 상단 이름/출처 뱃지를 숨기고 간격을 좁혀, 새 턴이 아니라 이어 말하는 느낌으로 표시.
+- **적용 파일/함수**:
+  - \`src/lib/chat-auto-improve.ts\` (\`buildAdaptivePromptBlock\`)
+  - \`src/app/api/demo/chat/route.ts\` (\`CONVERSATION_STYLE_BASE\`, \`SYSTEM_PROMPT_BASE\`)
+  - \`src/app/demo/webtoon-chatbot/page.tsx\` (\`sanitizeReply\`, \`splitReplyIntoChunks\`, \`randomChunkDelayMs\`, \`appendBotChunks\`)`,
+  },
+  {
     id: 'api-upstage',
     title: 'API 사용 구분 · Upstage 연동',
     content: `- API 실패 시 에러 메시지를 입력창 아래에 표시. .env.local 설정 안내 포함.

@@ -2,17 +2,35 @@
  * 웹툰 챗봇 프로젝트에 정리한 본문 + implementation_sections DB 반영 (1회 호출용)
  * POST /api/projects/seed-webtoon-sections
  */
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { WEBTOON_DEMO_IMPL_SECTIONS } from '@/lib/webtoon-demo-impl-sections';
 import { updateProject } from '@/lib/portfolio';
+import { getClientIp, isRateLimited, safeSecretEquals } from '@/lib/server-security';
 
 const SECTION_10_START = '\n\n## 10. 데모 구현과 시행착오\n\n';
 const NEW_ENDING =
   '\n\n---\n\n아래 **지금까지 구현한 내용**에서 데모 구성, RAG 튜닝, 프리셋, 답변 표시 방식, API 연동 등 항목별로 펼쳐 볼 수 있습니다.';
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
+    const ip = getClientIp(req);
+    const limited = isRateLimited('seed-webtoon-sections', ip, 5, 60_000);
+    if (limited.limited) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } }
+      );
+    }
+
+    const adminSecret = process.env.ADMIN_SECRET?.trim();
+    if (adminSecret) {
+      const sent = req.headers.get('x-admin-secret')?.trim() || '';
+      if (!sent || !safeSecretEquals(sent, adminSecret)) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+
     const { data: projects, error: listErr } = await supabase
       .from('portfolio_projects')
       .select('id, title, demo_url, description')

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { signOut } from '@/lib/supabase';
 
 const NAV = [
   { label: '블로그', path: '/posts' },
@@ -15,6 +17,7 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const { isLightTheme, toggleTheme } = useTheme();
+  const { user, loading } = useAuth();
   const [visible, setVisible] = useState(true);
   const [scrolled, setScrolled] = useState(false);
   const [mobile, setMobile] = useState(false);
@@ -38,6 +41,16 @@ export default function Navbar() {
   }, []);
 
   const active = (p: string) => p === '/' ? pathname === '/' : pathname.startsWith(p);
+  const authPath = pathname ? `/auth?redirect=${encodeURIComponent(pathname)}` : '/auth';
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      router.push('/');
+    } catch (err) {
+      console.error('로그아웃 오류:', err);
+    }
+  };
 
   return (
     <>
@@ -75,6 +88,33 @@ export default function Navbar() {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
               )}
             </button>
+            {!loading && !user && (
+              <button
+                className="btn-ghost auth-btn"
+                onClick={() => router.push(authPath)}
+                style={{ padding: '7px 14px', fontSize: '13px', marginLeft: '6px' }}
+              >
+                로그인
+              </button>
+            )}
+            {!loading && user && (
+              <>
+                <button
+                  className="btn-ghost auth-btn"
+                  onClick={() => router.push('/profile/edit')}
+                  style={{ padding: '7px 10px', fontSize: '12px', marginLeft: '6px' }}
+                >
+                  프로필
+                </button>
+                <button
+                  className="btn-ghost auth-btn"
+                  onClick={handleLogout}
+                  style={{ padding: '7px 10px', fontSize: '12px', marginLeft: '4px' }}
+                >
+                  로그아웃
+                </button>
+              </>
+            )}
             <button className="btn-primary" onClick={() => router.push('/write')} style={{ padding: '7px 18px', fontSize: '13px', marginLeft: '6px' }}>
               글쓰기
             </button>
@@ -98,6 +138,29 @@ export default function Navbar() {
             <button className="navbar-link" style={{ flex: 1 }} onClick={() => { router.push('/search'); setMobile(false); }}>
               검색
             </button>
+            {!loading && !user && (
+              <button className="navbar-link" style={{ flex: 1 }} onClick={() => { router.push(authPath); setMobile(false); }}>
+                로그인
+              </button>
+            )}
+            {!loading && user && (
+              <>
+                <button
+                  className="navbar-link"
+                  style={{ flex: 1 }}
+                  onClick={() => { router.push('/profile/edit'); setMobile(false); }}
+                >
+                  프로필
+                </button>
+                <button
+                  className="navbar-link"
+                  style={{ flex: 1 }}
+                  onClick={async () => { await handleLogout(); setMobile(false); }}
+                >
+                  로그아웃
+                </button>
+              </>
+            )}
             <button className="btn-primary" style={{ flex: 1, padding: '10px 16px', fontSize: '13px' }} onClick={() => { router.push('/write'); setMobile(false); }}>
               글쓰기
             </button>
@@ -109,6 +172,7 @@ export default function Navbar() {
         @media (max-width: 768px) {
           .mobile-menu-btn { display: flex !important; }
           .navbar .btn-primary { display: none !important; }
+          .navbar .auth-btn { display: none !important; }
         }
       `}</style>
     </>

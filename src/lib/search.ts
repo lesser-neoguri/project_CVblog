@@ -1,7 +1,5 @@
 import { supabase } from './supabase';
-import type { Post } from './supabase';
-import type { PaperReview } from './supabase';
-import type { KnowledgeNode } from './supabase';
+import type { Post, PaperReview, KnowledgeNode } from './supabase';
 
 export type SearchResultType = 'post' | 'paper' | 'node';
 
@@ -24,15 +22,23 @@ const excerpt = (text: string, maxLen = 120): string => {
     .replace(/!\[.*?\]\(.*?\)/g, '')
     .replace(/\n/g, ' ')
     .trim();
-  return t.length <= maxLen ? t : t.slice(0, maxLen) + '…';
+  return t.length <= maxLen ? t : `${t.slice(0, maxLen)}...`;
 };
+
+function sanitizeSearchInput(raw: string): string {
+  return raw
+    .slice(0, 100)
+    .replace(/[,%()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export async function searchAll(query: string): Promise<{
   posts: Post[];
   papers: PaperReview[];
   nodes: KnowledgeNode[];
 }> {
-  const q = query.trim();
+  const q = sanitizeSearchInput(query.trim());
   if (!q) return { posts: [], papers: [], nodes: [] };
 
   const pattern = `%${q}%`;
@@ -60,11 +66,11 @@ export async function searchAll(query: string): Promise<{
       .limit(15),
   ]);
 
-  const posts = (postsRes.data || []) as Post[];
-  const papers = (papersRes.data || []) as PaperReview[];
-  const nodes = (nodesRes.data || []) as KnowledgeNode[];
-
-  return { posts, papers, nodes };
+  return {
+    posts: (postsRes.data || []) as Post[],
+    papers: (papersRes.data || []) as PaperReview[],
+    nodes: (nodesRes.data || []) as KnowledgeNode[],
+  };
 }
 
 export function toSearchResults(
@@ -100,7 +106,8 @@ export function toSearchResults(
   });
 
   nodes.forEach((n) => {
-    const typeLabel = { field: '분야', technology: '기술', concept: '개념', paper: '논문' }[n.type] || n.type;
+    const typeLabel =
+      { field: '분야', technology: '기술', concept: '개념', paper: '논문' }[n.type] || n.type;
     results.push({
       type: 'node',
       id: n.id,
