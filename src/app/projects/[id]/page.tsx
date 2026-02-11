@@ -101,8 +101,9 @@ export default function ProjectDetailPage() {
     );
   }
 
-  // 관리자만 프로젝트 상세 열람 가능 (목록은 /projects에서 누구나 볼 수 있음)
-  if (!checkingViewAuth && !isAdmin) {
+  // 비공개(미발행) 프로젝트는 관리자만 상세 열람 가능
+  // 공개(published=true) 프로젝트는 누구나 열람 가능
+  if (!checkingViewAuth && !isAdmin && project && !project.published) {
     return (
       <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 32px' }}>
         <div style={{ textAlign: 'center' }}>
